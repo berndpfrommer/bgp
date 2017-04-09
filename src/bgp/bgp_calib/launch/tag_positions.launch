@@ -1,0 +1,17 @@
+<launch>
+  <arg name="output" default="screen"/>
+  <arg name="camera" default="poll_cameras/cam0"/>
+  <arg name="calibration_file"
+    default="$(find bgp_calib)/config/grasshoppers_hacked2.yaml"/>
+
+  <!-- calibration node -->
+    <!--    launch-prefix="xterm -e gdb minusminusargs" -->
+  <node pkg="bgp_calib" type="bgp_calib_node"
+    name="bgp_calib_node" output="$(arg output)" ns="$(arg camera)">
+    <rosparam command="load" file="$(arg calibration_file)"/>
+    <rosparam param="tag_poses" command="load" file="$(find bgp_calib)/data/tag_poses.yaml"/>
+    <rosparam param="camera_names">["camera"]</rosparam>
+    <remap from="~apriltags" to="apriltags"/>
+
+  </node>
+</launch>

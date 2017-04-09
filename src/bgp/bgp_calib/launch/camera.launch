@@ -1,0 +1,18 @@
+<launch>
+  <arg name="output" default="screen"/>
+  <arg name="camera" default="camera"/>
+  <arg name="calibration_file"
+    default="$(find bgp_calib)/config/grasshoppers.yaml"/>
+
+  <!-- calibration node -->
+  <node pkg="pointgrey_camera_driver" type="camera_node"
+    name="camera_node" output="$(arg output)" ns="$(arg camera)">
+    <rosparam command="load" file="$(arg calibration_file)"/>
+    <param name="camera_serial" type="string" value="17041925"/?>
+    <!--
+    <rosparam param="tag_poses" command="load" file="$(find bgp_calib)/data/tag_poses.yaml"/>
+    <rosparam param="camera_names">["camera"]</rosparam>
+    <remap from="~apriltags" to="apriltags"/>
+    -->
+  </node>
+</launch>
