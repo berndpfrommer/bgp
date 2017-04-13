@@ -18,18 +18,12 @@ namespace bgp_calib {
   void CalibNode::tag_cb(const
                          apriltag_msgs::ApriltagArrayStamped::ConstPtr &msg) {
     
-#if 0
+#if 1
     const auto &tags = msg->apriltags;
     for (const auto &tag: tags) {
-      std::cout << "calling for tag: " << tag.id << std::endl;
       calibTool_.tagObserved(msg->header.stamp, 0, tag);
-      //if (tag.id == 7) {
-      //std::cout << "FOUND TAG 7!: " << std::endl;
-      //for (int i= 0; i < 4; i++) {
-      //   std::cout << tag.corners[i].x << " " << tag.corners[i].y << std::endl;
-      // }
-      //}
     }
+    calibTool_.optimize();
 #else
     const int mytag = 42;
     const auto &tags = msg->apriltags;

@@ -54,9 +54,9 @@ namespace bgp_calib {
                 const Eigen::Vector3d &posnoise);
     void addCamera(CamPtr cam) { cam_.push_back(cam); }
     void test();
+    gtsam::Values  optimize();
 
   private:
-    gtsam::Values  optimize();
     void  testReprojection(const gtsam::Values &values,
                            const std::vector<gtsam::Point2> &ips,
                            boost::shared_ptr<gtsam::Cal3DS2> camModel);

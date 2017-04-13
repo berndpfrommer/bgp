@@ -72,47 +72,24 @@ namespace bgp_calib {
     cv::Mat SL;
     cv::SVD::compute(HL, SL);
     cv::Mat H  = HL * 1.0/SL.at<double>(0, 1);
-    // now compute eigenvalues H^T * H
-    cv::Mat hh = H.t() * H;
-    cv::Mat VT,S;
-    cv::eigen(hh, S, VT);
-    cv::Mat V(VT.t());
-    double s1sq = S.at<double>(0,0); // sigma_1^2
-    double s3sq = S.at<double>(0,2); // sigma_3^2
-    // form the basis vectors as per Ma pg 136
-    cv::Mat v1 = V.col(0);
-    cv::Mat v2 = V.col(1);
-    cv::Mat v3 = V.col(2);
-    cv::Mat u1 = (sqrt(1.0-s3sq)*v1 + sqrt(s1sq-1.0)*v3)*1.0/(sqrt(s1sq-s3sq));
-    cv::Mat u2 = (sqrt(1.0-s3sq)*v1 - sqrt(s1sq-1.0)*v3)*1.0/(sqrt(s1sq-s3sq));
-    cv::Mat U1 = make_mat(v2, u1, hat(v2)*u1);
-    cv::Mat W1 = make_mat(H*v2, H*u1, hat(H*v2)*H*u1);
-    cv::Mat U2 = make_mat(v2, u2, hat(v2)*u2);
-    cv::Mat W2 = make_mat(H*v2, H*u2, hat(H*v2)*H*u2);
-
-    // wrap up by computing the 4 possible solutions (Ma pg 137)
-    std::vector<cv::Mat> N, R, T;
-    N.push_back(hat(v2)*u1);
-    N.push_back(hat(v2)*u2);
-    N.push_back(-N[0]);
-    N.push_back(-N[1]);
-
-    cv::Mat W1U1t = W1 * U1.t();
-    cv::Mat W2U2t = W2 * U2.t();
-
-    R.push_back(W1U1t);
-    R.push_back(W2U2t);
-    R.push_back(R[0]);
-    R.push_back(R[1]);
-
-    T.push_back((H-R[0])*N[0]);
-    T.push_back((H-R[1])*N[1]);
-    T.push_back(-T[0]);
-    T.push_back(-T[1]);
-    // return solution with maximum z component
-    int idx = find_max_z(N);
-    *RR = R[idx];
-    *TT = T[idx].t();
+    // now normalize and orthogonalize the first two columns,
+    // which are the first two columns of the rotation matrix R
+    cv::Mat r1=H.col(0)/cv::norm(H.col(0));
+    cv::Mat r2 = H.col(1) - H.col(1).dot(r1)*r1;
+    r2 = r2/cv::norm(r2);
+    *RR = cv::Mat(3,3,CV_64F);
+    r1.copyTo(RR->col(0));
+    r2.copyTo(RR->col(1));
+    // r3 = r1 x r2
+    RR->at<double>(0,2) = r1.at<double>(1,0)*r2.at<double>(2,0) -
+      r1.at<double>(2,0)*r2.at<double>(1,0);
+    RR->at<double>(1,2) = r1.at<double>(2,0)*r2.at<double>(0,0) -
+      r1.at<double>(0,0)*r2.at<double>(2,0);
+    RR->at<double>(2,2) = r1.at<double>(0,0)*r2.at<double>(1,0) -
+      r1.at<double>(1,0)*r2.at<double>(0,0);
+    *TT = cv::Mat(3,1,CV_64F);
+    H.col(2).copyTo(*TT);
+    *TT = TT->t();
   }
 
   static void print_vec(const std::string &s,
@@ -138,16 +115,16 @@ namespace bgp_calib {
                    K(0,0), K(0,1), K(0,2),
                    K(1,0), K(1,1), K(1,2),
                    K(2,0), K(2,1), K(2,2));
-    std::cout << "K = " << KCV << std::endl;
+    //std::cout << "K = " << KCV << std::endl;
     std::vector<cv::Point2f> wp, ip;
     for (const auto &w: world_points) {
       wp.push_back(cv::Point2f(w.x(), w.y()));
     }
-    print_vec("wp", wp);
+    //print_vec("wp", wp);
     for (const auto &i: image_points) {
       ip.push_back(cv::Point2f(i.x(), i.y()));
     }
-    print_vec("ip", ip);
+    //print_vec("ip", ip);
     // use opencv to calculate the homography matrix. That works,
     // but for the life of it I couldn't get the decomposition to work.
     cv::Mat H = cv::findHomography(wp, ip);
@@ -163,7 +140,9 @@ namespace bgp_calib {
     // the points are at z = 0. To get the right transform we have to first add
     // [0,0,1]' to X_1, which is equivalent to adding R * [0,0,1]' to T.
     //
-    TO = TO + (RO*(cv::Mat_<double>(3,1) << 0,0,1.0)).t();
+    //TO = (cv::Mat_<double>(3,1) << 0.2,-0.1,5.0)).t();
+    TO = TO;
+    //TO = TO - (RO*(cv::Mat_<double>(3,1) << 0,0,1.0)).t();
 
     // convert to rotation vector
     Eigen::Matrix<double, 3, 3> m;

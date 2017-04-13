@@ -78,28 +78,13 @@ namespace bgp_calib {
   static boost::shared_ptr<gtsam::Cal3DS2> makeCameraModel(CamPtr c) {
     const Eigen::Matrix<double, 3, 3> &K = c->K();
     const Eigen::Matrix<double, 1, 5> &D = c->D();
-#if 1
     boost::shared_ptr<gtsam::Cal3DS2>
       model(new gtsam::Cal3DS2(K(0,0),K(1,1),0, K(0,2),K(1,2),
                                D(0,0),D(0,1),D(0,2),D(0,3)));
-#else
-    double fx(K(0,0)), fy(K(1,1)), s(0.0), u0(K(0,2)), v0(K(1,2));
-    //double fx(1024), fy(1024), s(0.0), u0(1024), v0(1024);
-    double k1(0), k2(0), p1(0), p2(0);
-#if 0    
-    cout << "fx: " << fx << endl;
-    cout << "fy: " << fy << endl;
-    cout << "s: " << s << endl;
-    cout << "u0: " << u0 << endl;
-    cout << "v0: " << v0 << endl;
-#endif    
-    boost::shared_ptr<gtsam::Cal3DS2>
-      model(new gtsam::Cal3DS2(fx, fy, s, u0, v0, k1, k2, p1, p2));
-#endif    
     return (model);
   }
 
-#define DEBUG_PRINT
+//#define DEBUG_PRINT
 
   static gtsam::Pose3 guessPose(CamPtr c, const CalibTool::Tag &tag,
                                 const apriltag_msgs::Apriltag::_corners_type &corners)
@@ -146,25 +131,21 @@ namespace bgp_calib {
     gtsam::Values::const_iterator it;
     for (it = values.begin(); it != values.end(); ++it) {
       gtsam::Symbol sym(it->key);
-      if (sym.chr() == 'o') {
-        const gtsam::Pose3 &pose = values.at<gtsam::Pose3>(it->key);
-        cout << "camera object pose: " << pose << endl;
-      }
       if (sym.chr() == 'c') {
         const gtsam::Pose3 &pose = values.at<gtsam::Pose3>(it->key);
-        cout << "camera frame pose: " << pose << endl;
+        cout << "camera world pose: " << pose << endl;
       }
     }
   }
   
   gtsam::Values CalibTool::optimize() {
-//#ifdef DEBUG_PRINT
+#ifdef DEBUG_PRINT
     cout << "---------------- graph: ------------------- " << endl;
     graph_.print();
     cout << "---------------- values: ------------------- " << endl;
     values_.print();
     cout << "---------- output from optimizer ---------" << endl;
-//#endif    
+#endif    
     gtsam::LevenbergMarquardtParams lmp;
     lmp.setVerbosity("TERMINATION");
     //lmp.setVerbosity("ERROR");
@@ -173,12 +154,12 @@ namespace bgp_calib {
     lmp.setRelativeErrorTol(0);
     gtsam::LevenbergMarquardtOptimizer lmo(graph_, values_, lmp);
     gtsam::Values result = lmo.optimize();
-//#ifdef DEBUG_PRINT
+#ifdef DEBUG_PRINT
     cout << "------------------------------------------" << endl;
     result.print();
     cout << "-------------- SUCCESS -----------------" << endl;
-//#endif    
-    //printCameraPoses(result);
+#endif    
+    printCameraPoses(result);
     return (result);
   }
 
@@ -266,7 +247,7 @@ namespace bgp_calib {
       // add ref frame factor and corresponding values
       gtsam::Symbol wsym('w', 4 * tag.id + i);
       graph_.push_back(gtsam::ReferenceFrameFactor<gtsam::Point3,
-                       gtsam::Pose3>(wsym, osym, xsym, noise));
+                       gtsam::Pose3>(xsym, osym, wsym, noise));
       gtsam::Point3 oX = values_.at<gtsam::Point3>(xsym);
       values_.insert(wsym, tag.pose.transform_from(oX));
     }
@@ -320,9 +301,9 @@ namespace bgp_calib {
       values_.insert(csym, wTc);
     }
 
-    gtsam::Values result = optimize();
+    //gtsam::Values result = optimize();
     //testReprojection(result, ip, camModel);
-#define CLEAR_IT
+//#define CLEAR_IT
 #ifdef CLEAR_IT
     values_.clear();
     graph_.erase(graph_.begin(), graph_.end());
