@@ -1,23 +1,51 @@
-camera:
+cam0:
   T_cam_imu:
     [1.0, 0.0, 0.0, 0.0,
      0.0, 1.0, 0.0, 0.0,
      0.0, 0.0, 1.0, 0.0,
      0.0, 0.0, 0.0, 1.0]
   camera_model: pinhole
-  distortion_coeffs: [-0.163620, 0.086008, 0.000376, -0.000640, 0.000000]
+#  distortion_coeffs: [-0.163620, 0.086008, 0.000376, -0.000640, 0.000000]
+  distortion_coeffs: [0, 0, 0, 0, 0]
   distortion_model: equidistant
   intrinsics: [1497.527689, 1494.619970, 1017.040351, 1030.964561]
   resolution: [2048, 2048]
   rostopic: image_raw
-camera_foo:
+cam1:
   T_cam_imu:
     [1.0, 0.0, 0.0, 0.0,
      0.0, 1.0, 0.0, 0.0,
      0.0, 0.0, 1.0, 0.0,
      0.0, 0.0, 0.0, 1.0]
   camera_model: pinhole
-  distortion_coeffs: [-0.163620, 0.086008, 0.000376, -0.000640, 0.000000]
+#  distortion_coeffs: [-0.163620, 0.086008, 0.000376, -0.000640, 0.000000]
+  distortion_coeffs: [0, 0, 0, 0, 0]
+  distortion_model: equidistant
+  intrinsics: [1497.527689, 1494.619970, 1017.040351, 1030.964561]
+  resolution: [2048, 2048]
+  rostopic: image_raw
+cam2:
+  T_cam_imu:
+    [1.0, 0.0, 0.0, 0.0,
+     0.0, 1.0, 0.0, 0.0,
+     0.0, 0.0, 1.0, 0.0,
+     0.0, 0.0, 0.0, 1.0]
+  camera_model: pinhole
+#  distortion_coeffs: [-0.163620, 0.086008, 0.000376, -0.000640, 0.000000]
+  distortion_coeffs: [0, 0, 0, 0, 0]
+  distortion_model: equidistant
+  intrinsics: [1497.527689, 1494.619970, 1017.040351, 1030.964561]
+  resolution: [2048, 2048]
+  rostopic: image_raw
+cam3:
+  T_cam_imu:
+    [1.0, 0.0, 0.0, 0.0,
+     0.0, 1.0, 0.0, 0.0,
+     0.0, 0.0, 1.0, 0.0,
+     0.0, 0.0, 0.0, 1.0]
+  camera_model: pinhole
+#  distortion_coeffs: [-0.163620, 0.086008, 0.000376, -0.000640, 0.000000]
+  distortion_coeffs: [0, 0, 0, 0, 0]
   distortion_model: equidistant
   intrinsics: [1497.527689, 1494.619970, 1017.040351, 1030.964561]
   resolution: [2048, 2048]

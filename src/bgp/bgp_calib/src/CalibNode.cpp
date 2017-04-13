@@ -16,12 +16,13 @@ namespace bgp_calib {
   }
 
   void CalibNode::tag_cb(const
-                         apriltag_msgs::ApriltagArrayStamped::ConstPtr &msg) {
+                         apriltag_msgs::ApriltagArrayStamped::ConstPtr &msg,
+                         int tagid) {
     
 #if 1
     const auto &tags = msg->apriltags;
     for (const auto &tag: tags) {
-      calibTool_.tagObserved(msg->header.stamp, 0, tag);
+      calibTool_.tagObserved(msg->header.stamp, tagid, tag);
     }
     calibTool_.optimize();
 #else
@@ -73,13 +74,13 @@ namespace bgp_calib {
       throw std::runtime_error("no camera names specified!!!");
     }
 
-    for (const std::string &cname: cams) {
-      CamPtr cam(new Camera(cname));
+    for (int id = 0; id < cams.size(); id++) {
+      const std::string &cname = cams[id];
+      CamPtr cam(new Camera(cname, id, this));
       cam->initialize(&nh_, cname);
       calibTool_.addCamera(cam);
       ROS_INFO("loaded camera calibration for %s", cname.c_str());
     }
-    sub_ = nh_.subscribe("apriltags", 1, &CalibNode::tag_cb, this);
 
     XmlRpc::XmlRpcValue poses;
     nh_.getParam("tag_poses", poses);

@@ -20,11 +20,10 @@ namespace bgp_calib {
     CalibNode& operator=(const CalibNode&) = delete;
 
     bool initialize();
-    void tag_cb(const apriltag_msgs::ApriltagArrayStamped::ConstPtr &msg);
+    void tag_cb(const apriltag_msgs::ApriltagArrayStamped::ConstPtr &msg, int camid);
  
   private:
     ros::NodeHandle     nh_;
-    ros::Subscriber     sub_;
     CalibTool           calibTool_;
   };
 

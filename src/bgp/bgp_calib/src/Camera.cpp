@@ -7,11 +7,15 @@
 #include <string>
 #include <vector>
 #include <ctime>
+#include <bgp_calib/calib_node.h>
 
 using std::vector;
 using std::string;
 
 namespace bgp_calib {
+  Camera::~Camera() {
+    sub_.shutdown();
+  }
   void Camera::setDistortionModel(const std::string &distmodel) {
     distModel_ = distmodel;
     camInfo_.distortion_model = distmodel;
@@ -83,6 +87,13 @@ namespace bgp_calib {
     return (val);
   }
   
+  void Camera::tag_cb(const
+                         apriltag_msgs::ApriltagArrayStamped::ConstPtr &msg) {
+    if (calibNode_) {
+      calibNode_->tag_cb(msg, id_);
+    }
+  }
+
   void Camera::initialize(ros::NodeHandle *nh,
                           const std::string &camName) {
     std::string topic = camName + "_output_rect";
@@ -93,5 +104,6 @@ namespace bgp_calib {
                                  string("equidistant")));
     setTransform(get_param(nh, camName + "/T_cam_imu", vector<double>()));
     setRes(get_param(nh, camName + "/resolution", vector<int>()));
+    sub_ = nh->subscribe(camName + "/apriltags", 1, &Camera::tag_cb, this);
   }
 }

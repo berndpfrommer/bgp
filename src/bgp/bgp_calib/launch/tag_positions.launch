@@ -1,17 +1,23 @@
 <launch>
   <arg name="output" default="screen"/>
-  <arg name="camera" default="poll_cameras/cam0"/>
   <arg name="calibration_file"
-    default="$(find bgp_calib)/config/grasshoppers_hacked2.yaml"/>
+    default="$(find bgp_calib)/config/grasshoppers.yaml"/>
+  <arg name="poll_name" default="/poll_cameras"/>
 
   <!-- calibration node -->
     <!--    launch-prefix="xterm -e gdb minusminusargs" -->
   <node pkg="bgp_calib" type="bgp_calib_node"
-    name="bgp_calib_node" output="$(arg output)" ns="$(arg camera)">
+    name="bgp_calib_node" output="$(arg output)">
     <rosparam command="load" file="$(arg calibration_file)"/>
     <rosparam param="tag_poses" command="load" file="$(find bgp_calib)/data/tag_poses.yaml"/>
-    <rosparam param="camera_names">["camera"]</rosparam>
-    <remap from="~apriltags" to="apriltags"/>
-
+    <rosparam param="camera_names">["cam0","cam1","cam2","cam3"]</rosparam>
+    <remap from="~cam0/apriltags" to="$(arg poll_name)/cam0/apriltags"/>
+    <remap from="~cam1/apriltags" to="$(arg poll_name)/cam1/apriltags"/>
+    <remap from="~cam2/apriltags" to="$(arg poll_name)/cam2/apriltags"/>
+    <remap from="~cam3/apriltags" to="$(arg poll_name)/cam3/apriltags"/>
   </node>
+  <foo>
+      launch-prefix="gdb -ex run --args"
+  </foo>
+
 </launch>

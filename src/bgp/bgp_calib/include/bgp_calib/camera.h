@@ -8,13 +8,17 @@
 #include <ros/ros.h>
 #include <sensor_msgs/CameraInfo.h>
 #include <image_transport/image_transport.h>
+#include <apriltag_msgs/ApriltagArrayStamped.h>
 #include <memory>
 #include <map>
 
 namespace bgp_calib {
+  class CalibNode;
   class Camera {
   public:
-    Camera(const std::string &name = "") : name_(name) {}
+    Camera(const std::string &name = "", int id = 0, CalibNode *n = 0) :
+      name_(name), id_(id), calibNode_(n) {}
+    ~Camera();
 
     void setK(const std::vector<double> &intrinsics);
     void setD(const std::vector<double> &coeff);
@@ -39,9 +43,11 @@ namespace bgp_calib {
 
     int getFrameNum(const ros::Time &t);
     void initialize(ros::NodeHandle *nh,  const std::string &camName);
-
+    void tag_cb(const apriltag_msgs::ApriltagArrayStamped::ConstPtr &msg);
   private:
     std::string                 name_;
+    int                         id_;
+    CalibNode                   *calibNode_;
     std::string                 distModel_;
     Eigen::Matrix<double, 3, 3> K_;       // intrinsic matrix [3x3]
     Eigen::Matrix<double, 1, 5> D_;       // distortion coefficients [1 x n]
@@ -52,6 +58,7 @@ namespace bgp_calib {
     sensor_msgs::CameraInfo     camInfo_;
     ros::Time                   lastTime_;
     int                         frameNum_{-1};
+    ros::Subscriber             sub_;
   };
   typedef std::shared_ptr<Camera> CamPtr;
 }
