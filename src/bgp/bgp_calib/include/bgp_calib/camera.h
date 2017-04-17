@@ -9,6 +9,7 @@
 #include <sensor_msgs/CameraInfo.h>
 #include <image_transport/image_transport.h>
 #include <apriltag_msgs/ApriltagArrayStamped.h>
+#include <iostream>
 #include <memory>
 #include <map>
 
@@ -42,8 +43,10 @@ namespace bgp_calib {
     const int *res() const { return (res_); }
 
     int getFrameNum(const ros::Time &t);
+    bool gotFrames() const { return (frameNum_ >= 0); }
     void initialize(ros::NodeHandle *nh,  const std::string &camName);
     void tag_cb(const apriltag_msgs::ApriltagArrayStamped::ConstPtr &msg);
+    void print_intrinsics(std::ostream &of) const;
   private:
     std::string                 name_;
     int                         id_;

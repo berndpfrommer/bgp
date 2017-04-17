@@ -17,42 +17,25 @@ namespace bgp_calib {
 
   void CalibNode::tag_cb(const
                          apriltag_msgs::ApriltagArrayStamped::ConstPtr &msg,
-                         int tagid) {
-    
-#if 1
-    const auto &tags = msg->apriltags;
-    for (const auto &tag: tags) {
-      calibTool_.tagObserved(msg->header.stamp, tagid, tag);
-    }
-    calibTool_.optimize();
-#else
-    const int mytag = 42;
-    const auto &tags = msg->apriltags;
-    for (const auto &tag: tags) {
-      //std::cout << "got tag: " << tag.id << std::endl;
-      //calibTool_.tagObserved(msg->header.stamp, 0, tag);
-      if (tag.id == mytag) {
-        std::cout << "FOUND TAG " << mytag << std::endl;
-        for (int i= 0; i < 4; i++) {
-          std::cout << "tag.corners["<<i<<"].x = " << tag.corners[i].x << ";" << std::endl;
-          std::cout << "tag.corners["<<i<<"].y = " << tag.corners[i].y << ";" << std::endl;
-        }
+                         int camid) {
+    // if this is first frame for camera, process it
+    if (!calibTool_.gotFrames(camid)) {
+      int numUsed(0);
+      for (const auto &tag: msg->apriltags) {
+        bool used = calibTool_.tagObserved(msg->header.stamp, camid, tag);
+        if (used) numUsed++;
       }
+      std::cout << "cam " << camid << " processed " << numUsed << " of " <<
+        msg->apriltags.size() << " tags!" << std::endl;
     }
-    apriltag_msgs::Apriltag tag;
-    tag.id = mytag;
-    tag.corners[0].x = 1552.51;
-    tag.corners[0].y = 782.955;
-    tag.corners[1].x = 1637.1;
-    tag.corners[1].y = 786.413;
-    tag.corners[2].x = 1636.81;
-    tag.corners[2].y = 699.18;
-    tag.corners[3].x = 1551.9;
-    tag.corners[3].y = 696.373;
-    
-    calibTool_.tagObserved(msg->header.stamp, 0, tag);
-#endif
-    exit(-1);
+    if (calibTool_.allCamerasHaveFrames()) {
+      calibTool_.optimize();
+      calibTool_.printResults();
+      std::string calibFileName("calib.yaml");
+      nh_.getParam("calib_file_name", calibFileName);
+      calibTool_.writeCalibrationFile(calibFileName);
+      ros::shutdown();
+    }
   }
 
   static Eigen::Vector3d get_vec(XmlRpc::XmlRpcValue v) {

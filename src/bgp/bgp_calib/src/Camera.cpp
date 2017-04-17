@@ -5,6 +5,7 @@
 #include <bgp_calib/camera.h>
 #include <ros/console.h>
 #include <string>
+#include <sstream>
 #include <vector>
 #include <ctime>
 #include <bgp_calib/calib_node.h>
@@ -85,6 +86,24 @@ namespace bgp_calib {
       throw (std::runtime_error("cannot find parameter " + name));
     }
     return (val);
+  }
+
+  static std::string vec_to_str(const Eigen::Matrix<double, 1, 5> &v) {
+    std::stringstream ss;
+    ss << std::fixed << std::setw(9) << std::setprecision(5) << v(0, 0);
+    for(int i = 1; i < 5; i++) {
+      ss << ", " << std::fixed << std::setw(9) << std::setprecision(5) << v(0, i);
+    }
+    return (ss.str());
+  }
+
+  void Camera::print_intrinsics(std::ostream &of) const {
+    of << "  camera_model: pinhole" << std::endl;
+    of << "  distortion_coeffs: [" << vec_to_str(D_) << "]" << std::endl;
+    of << "  distortion_model: equidistant" << std::endl;
+    of << "  intrinsics: [" << K_(0,0) << ", " << K_(1,1) << ", " << K_(0,2)
+       << ", " << K_(1,2) << "]" << std::endl;
+    of << "  resolution: [" << res_[0] << ", " << res_[1] << "]" << std::endl;
   }
   
   void Camera::tag_cb(const

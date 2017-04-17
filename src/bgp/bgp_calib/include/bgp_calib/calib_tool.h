@@ -46,16 +46,19 @@ namespace bgp_calib {
     CalibTool(const CalibTool&) = delete;
     CalibTool& operator=(const CalibTool&) = delete;
 
-    void tagObserved(const ros::Time &t, int camid,
+    bool tagObserved(const ros::Time &t, int camid,
                      const apriltag_msgs::Apriltag &obstag);
     bool addTag(int id, double size, const Eigen::Vector3d &anglevec,
                 const Eigen::Vector3d &center,
                 const Eigen::Vector3d &angnoise,
                 const Eigen::Vector3d &posnoise);
     void addCamera(CamPtr cam) { cam_.push_back(cam); }
+    void printResults() const;
     void test();
     gtsam::Values  optimize();
-
+    bool allCamerasHaveFrames() const;
+    bool gotFrames(int camid) const { return (cam_[camid]->gotFrames()); }
+    void writeCalibrationFile(const std::string &filename) const;
   private:
     void  testReprojection(const gtsam::Values &values,
                            const std::vector<gtsam::Point2> &ips,

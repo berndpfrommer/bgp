@@ -13,6 +13,8 @@
 #include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
 #include <string>
 #include <cmath>
+#include <iostream>
+#include <fstream>
 
 using std::cout;
 using std::endl;
@@ -29,6 +31,15 @@ namespace bgp_calib {
   static gtsam::Symbol getWorldToCamSym(int camid, int frame) {
     return (gtsam::Symbol('c' + camid, frame));
   }
+
+  static void print_pose(std::ostream &of, const gtsam::Pose3 &p) {
+    gtsam::Matrix4 M = p.matrix();
+    of << "    [" << M(0,0) << ", " << M(0,1) << ", " << M(0,2) << ", " << M(0,3) <<","<< endl;
+    of << "     " << M(1,0) << ", " << M(1,1) << ", " << M(1,2) << ", " << M(1,3) <<","<< endl;
+    of << "     " << M(2,0) << ", " << M(2,1) << ", " << M(2,2) << ", " << M(2,3) <<","<< endl;
+    of << "     " << M(3,0) << ", " << M(3,1) << ", " << M(3,2) << ", " << M(3,3) <<"]"<< endl;
+  }
+
 #if 0  
   static void print_trans(std::string name, const gtsam::Pose3 &p) {
     cout << name << "R = [";
@@ -235,44 +246,51 @@ namespace bgp_calib {
     // find tag
     const Tag &tag = tags_[otag.id];
     // add wTo transform and prior factor for it
-    gtsam::Symbol osym('o', tag.id);   // wTo 
-    graph_.push_back(gtsam::PriorFactor<gtsam::Pose3>(osym, tag.pose, tag.noise));
-    values_.insert(osym, tag.pose);
-    
-    auto noise = gtsam::noiseModel::Isotropic::Sigma(3, 1e-4); // error in m!
-    // now add world coordinate points "w" to grah and values
-    for (int i = 0; i < 4; i++) {   // loop over corners
-      // this will also insert the object coordinates X if needed!
-      gtsam::Symbol xsym = getObjectCoordSym(tag, i);
-      // add ref frame factor and corresponding values
-      gtsam::Symbol wsym('w', 4 * tag.id + i);
-      graph_.push_back(gtsam::ReferenceFrameFactor<gtsam::Point3,
-                       gtsam::Pose3>(xsym, osym, wsym, noise));
-      gtsam::Point3 oX = values_.at<gtsam::Point3>(xsym);
-      values_.insert(wsym, tag.pose.transform_from(oX));
+    gtsam::Symbol osym('o', tag.id);   // wTo
+    if (!values_.exists(osym)) {
+      graph_.push_back(gtsam::PriorFactor<gtsam::Pose3>(osym, tag.pose, tag.noise));
+      values_.insert(osym, tag.pose);
+      auto noise = gtsam::noiseModel::Isotropic::Sigma(3, 1e-4); // error in m!
+      // now add world coordinate points "w" to graph and values
+      for (int i = 0; i < 4; i++) {   // loop over corners
+        // this will also insert the object coordinates X if needed!
+        gtsam::Symbol xsym = getObjectCoordSym(tag, i);
+        // add ref frame factor and corresponding values
+        gtsam::Symbol wsym('w', 4 * tag.id + i);
+        graph_.push_back(gtsam::ReferenceFrameFactor<gtsam::Point3,
+                         gtsam::Pose3>(xsym, osym, wsym, noise));
+        gtsam::Point3 oX = values_.at<gtsam::Point3>(xsym);
+        values_.insert(wsym, tag.pose.transform_from(oX));
+      }
     }
   }
-                                 
+
+  bool CalibTool::allCamerasHaveFrames() const {
+    bool haveAllFrames(true);
+    for (const CamPtr &cam: cam_) {
+      if (!cam->gotFrames()) {
+        haveAllFrames = false;
+        break;
+      }
+    }
+    return (haveAllFrames);
+  }
   
-  void CalibTool::tagObserved(const ros::Time &t,
+  bool CalibTool::tagObserved(const ros::Time &t,
                               int camid, const apriltag_msgs::Apriltag &obstag) {
     if (camid < 0 || camid > cam_.size()) {
       ROS_ERROR("invalid cam id %d, total cams: %d", camid, (int)cam_.size());
-      return;
+      return (false);
     }
     if (tags_.count(obstag.id) == 0) {
-      return;
+      return (false);
     }
-    ROS_INFO("using tag: %d", obstag.id);
+    CamPtr &c = cam_[camid];
+
     const Tag &tag = tags_[obstag.id];
 
-    //graph_ = gtsam::NonlinearFactorGraph();
-    //values_ = gtsam::Values();
-    CamPtr &c = cam_[camid];
     int frame_num = c->getFrameNum(t);
     insertTagIfNew(frame_num, camid, obstag);
-
-    cout << "frame num: " << frame_num << " camid: " << camid << endl;
 
     //
     // add projection factor
@@ -294,10 +312,10 @@ namespace bgp_calib {
     //
     if (!values_.exists(csym)) {
       gtsam::Pose3 cTo = guessPose(c, tag, obstag.corners);
-      print_trans("cTo", cTo);
-      print_trans("wTo", tag.pose);
+      //print_trans("cTo", cTo);
+      //print_trans("wTo", tag.pose);
       gtsam::Pose3 wTc = tag.pose.compose(cTo.inverse());
-      print_trans("wTc", wTc);
+      //print_trans("wTc", wTc);
       values_.insert(csym, wTc);
     }
 
@@ -307,9 +325,42 @@ namespace bgp_calib {
 #ifdef CLEAR_IT
     values_.clear();
     graph_.erase(graph_.begin(), graph_.end());
-#endif    
+#endif
+    return (true);
   }
 
+  void CalibTool::printResults() const {
+    cout << "======================= result ================" << endl;
+    for (auto const &framekv: obsTags_) {
+      int frame_num = framekv.first;
+      cout << " -------- frame: " << frame_num << endl;
+      for (auto const &camkv: framekv.second) {
+        int camid = camkv.first;
+        cout << " camid: " << camid << endl;
+        gtsam::Symbol csym = getWorldToCamSym(camid, frame_num);
+        gtsam::Pose3 cTw = values_.at<gtsam::Pose3>(csym);
+        print_trans("cTw" + std::to_string(camid), cTw);
+      }
+    }
+  }
+
+  void CalibTool::writeCalibrationFile(const std::string &filename) const {
+    std::ofstream of(filename);
+    for (int camid = 0; camid < cam_.size(); camid++) {
+      const auto &cam = *cam_[camid];
+      int frame_num = 0;
+      gtsam::Symbol csym = getWorldToCamSym(camid, frame_num);
+      if (values_.exists(csym)) {
+        gtsam::Pose3 cTw = values_.at<gtsam::Pose3>(csym);
+        of << cam.getName() << ":" << std::endl;
+        of << "  T_cam_imu:" << std::endl;
+        print_pose(of, cTw);
+        cam.print_intrinsics(of);
+        of << "  rostopic: " << cam.getName() << std::endl;
+      }
+    }
+  }
+  
   void CalibTool::testReprojection(const gtsam::Values &values,
                                    const std::vector<gtsam::Point2> &ips,
                                    boost::shared_ptr<gtsam::Cal3DS2> camModel) {
