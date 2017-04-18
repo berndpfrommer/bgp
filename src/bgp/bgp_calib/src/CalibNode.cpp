@@ -25,9 +25,14 @@ namespace bgp_calib {
     if (calibTool_.allCamerasHaveFrames()) {
       calibTool_.optimize();
       calibTool_.printResults();
-      std::string calibFileName("calib.yaml");
+      std::string calibFileName("calib.yaml"), tagPoses("tag_poses.txt"),
+        camPoses("cam_poses.txt");
       nh_.getParam("calib_file_name", calibFileName);
+      nh_.getParam("output_tag_poses_file", tagPoses);
+      nh_.getParam("output_cam_poses_file", camPoses);      
       calibTool_.writeCalibrationFile(calibFileName);
+      calibTool_.writeTagPoses(tagPoses);
+      calibTool_.writeCameraPoses(camPoses);
 #ifdef RUN_CONTINUOUSLY
       calibTool_.clear();
 #else

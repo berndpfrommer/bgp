@@ -50,21 +50,24 @@ namespace bgp_calib {
     CalibTool(const CalibTool&) = delete;
     CalibTool& operator=(const CalibTool&) = delete;
 
+    void setMaxError(double e) { maxError_ = e; }
+    void addCamera(CamPtr cam) { cam_.push_back(cam); }
     bool addTag(int id, double size, const Eigen::Vector3d &anglevec,
                 const Eigen::Vector3d &center,
                 const Eigen::Vector3d &angnoise,
                 const Eigen::Vector3d &posnoise);
-    void addCamera(CamPtr cam) { cam_.push_back(cam); }
-    int frameObserved(const apriltag_msgs::ApriltagArrayStamped::ConstPtr &msg,
+    int  frameObserved(const apriltag_msgs::ApriltagArrayStamped::ConstPtr &msg,
                       int camid);
-    void printResults() const;
-    void test();
     gtsam::Values  optimize();
+    void clear();
+ 
+    void printResults() const;
     bool allCamerasHaveFrames() const;
     bool gotFrames(int camid) const { return (cam_[camid]->gotFrames()); }
     void writeCalibrationFile(const std::string &filename) const;
-    void clear();
-    void setMaxError(double e) { maxError_ = e; }
+    void writeCameraPoses(const std::string &filename) const;
+    void writeTagPoses(const std::string &filename) const;
+
   private:
     typedef boost::random::mt19937 RandEng;
     typedef boost::random::normal_distribution<double> RandDist;
@@ -97,6 +100,7 @@ namespace bgp_calib {
     
     std::map<int, CamToTagsMap>   obsTags_; // observed tags for each frame
     gtsam::Values                 values_;
+    gtsam::Values                 optimizedValues_;
     gtsam::NonlinearFactorGraph   graph_;
     std::map<int,    Tag>         tags_;
     std::map<double, int>         tagSizeToNumber_;
