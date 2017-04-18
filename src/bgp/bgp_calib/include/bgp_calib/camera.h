@@ -47,6 +47,7 @@ namespace bgp_calib {
     void initialize(ros::NodeHandle *nh,  const std::string &camName);
     void tag_cb(const apriltag_msgs::ApriltagArrayStamped::ConstPtr &msg);
     void print_intrinsics(std::ostream &of) const;
+    void clear() { frameNum_ = -1; lastTime_ = ros::Time(0);}
   private:
     std::string                 name_;
     int                         id_;

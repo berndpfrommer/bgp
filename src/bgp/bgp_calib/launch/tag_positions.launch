@@ -9,9 +9,11 @@
   <node pkg="bgp_calib" type="bgp_calib_node"
     name="bgp_calib_node" output="$(arg output)">
     <rosparam command="load" file="$(arg calibration_file)"/>
-    <rosparam param="tag_poses" command="load" file="$(find bgp_calib)/data/tag_poses.yaml"/>
-    <rosparam param="camera_names">["cam0","cam1"]</rosparam>
+    <rosparam param="tag_poses" command="load" file="$(find bgp_calib)/data/tag_poses_full.yaml"/>
+    <rosparam param="camera_names">["cam0", "cam1", "cam2", "cam3"]</rosparam>
+    <rosparam param="camera_names_foo">["cam0","cam1"]</rosparam>
     <param name="calib_file_name" type="string" value="$(find bgp_calib)/config/calib.yaml"/>
+    <param name="max_error" type="double" value="3000"/>
     <remap from="~cam0/apriltags" to="$(arg poll_name)/cam0/apriltags"/>
     <remap from="~cam1/apriltags" to="$(arg poll_name)/cam1/apriltags"/>
     <remap from="~cam2/apriltags" to="$(arg poll_name)/cam2/apriltags"/>

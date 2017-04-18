@@ -11,6 +11,7 @@
 #include <gtsam/slam/ProjectionFactor.h>
 #include <gtsam/slam/AntiFactor.h>
 #include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
+#include <Eigen/Eigenvalues>
 #include <string>
 #include <cmath>
 #include <iostream>
@@ -20,6 +21,7 @@ using std::cout;
 using std::endl;
 
 namespace bgp_calib {
+  typedef gtsam::GenericProjectionFactor<gtsam::Pose3, gtsam::Point3, gtsam::Cal3DS2> ProjectionFactor;
   static std::vector<gtsam::Point3> wps;
   static std::vector<std::pair<double, double>> ips;
   static int to_point_id(int tagid, int corner) {
@@ -30,6 +32,14 @@ namespace bgp_calib {
   }
   static gtsam::Symbol getWorldToCamSym(int camid, int frame) {
     return (gtsam::Symbol('c' + camid, frame));
+  }
+  static gtsam::Symbol getWSym(int tagid, int corner) {
+    return (gtsam::Symbol('w', 4 * tagid + corner));
+  }
+
+  static void getTagAndCornerFromIndex(int index, int *tagid, int *corner) {
+    *corner = index % 4;
+    *tagid = index / 4;
   }
 
   static void print_pose(std::ostream &of, const gtsam::Pose3 &p) {
@@ -97,25 +107,28 @@ namespace bgp_calib {
 
 //#define DEBUG_PRINT
 
+  static std::vector<gtsam::Point2> to_gtsam_vec(const apriltag_msgs::Apriltag::_corners_type &corners) {
+    std::vector<gtsam::Point2> v;
+    for (int i = 0; i < 4; i++) {   // loop over corners
+      v.push_back(gtsam::Point2(corners[i].x, corners[i].y));
+    }
+    return (v);
+  }
+  
   static gtsam::Pose3 guessPose(CamPtr c, const CalibTool::Tag &tag,
-                                const apriltag_msgs::Apriltag::_corners_type &corners)
-  {
-    
-    std::vector<gtsam::Point2> ip;  // image points
+                                const std::vector<gtsam::Point2> ip) {
     std::vector<gtsam::Point3> wp;  // image points
     for (int i = 0; i < 4; i++) {   // loop over corners
-      gtsam::Point2 uv(corners[i].x, corners[i].y);
-      ip.push_back(uv);
       wp.push_back(tag.getObjectCorner(i));
 #ifdef DEBUG_PRINT
-      cout << corners[i].x << " " << corners[i].y << " "
+      cout << ip[i].x() << " " << ip[i].y() << " "
            << wp.back().x() << " " << wp.back().y() << " " << wp.back().z() << endl;
 #endif
       gtsam::Point3 wp0(wp.back().x(), wp.back().y(), 0.0);
       gtsam::Point3 wpt = tag.pose.transform_from(wp0);
 
       wps.push_back(wpt);
-      ips.push_back(std::pair<double,double>(corners[i].x, corners[i].y));
+      ips.push_back(std::pair<double,double>(ip[i].x(), ip[i].y()));
     }
 #ifdef DEBUG_PRINT
     cout << "K: " << c->K() << endl;
@@ -125,6 +138,21 @@ namespace bgp_calib {
     return (guess);
   }
   
+  static double tryOptimization(gtsam::Values *result,
+                                const gtsam::NonlinearFactorGraph &graph,
+                                const gtsam::Values &values,
+                                const std::string &verbosity, int maxIter) {
+      gtsam::LevenbergMarquardtParams lmp;
+      lmp.setVerbosity(verbosity);
+      lmp.setMaxIterations(maxIter);
+      lmp.setAbsoluteErrorTol(1e-5);
+      lmp.setRelativeErrorTol(0);
+      gtsam::LevenbergMarquardtOptimizer lmo(graph, values, lmp);
+      *result = lmo.optimize();
+      double err = lmo.error();
+      return (err);
+  }
+
   gtsam::Point3 CalibTool::Tag::getObjectCorner(int i) const {
     double s = size;
     const gtsam::Point3 c[4] = {gtsam::Point3(-s/2,-s/2, 0),
@@ -148,31 +176,40 @@ namespace bgp_calib {
       }
     }
   }
+
+  void CalibTool::clear() {
+    obsTags_.clear();
+    values_.clear();
+    graph_.erase(graph_.begin(), graph_.end());
+    for (CamPtr &cam: cam_) {
+      cam->clear();
+    }
+
+  }
   
   gtsam::Values CalibTool::optimize() {
-#ifdef DEBUG_PRINT
+#ifdef DEBUG_PRINT_OPT
     cout << "---------------- graph: ------------------- " << endl;
     graph_.print();
     cout << "---------------- values: ------------------- " << endl;
     values_.print();
     cout << "---------- output from optimizer ---------" << endl;
-#endif    
-    gtsam::LevenbergMarquardtParams lmp;
-    lmp.setVerbosity("TERMINATION");
-    //lmp.setVerbosity("ERROR");
-    lmp.setMaxIterations(100);
-    lmp.setAbsoluteErrorTol(1e-5);
-    lmp.setRelativeErrorTol(0);
-    gtsam::LevenbergMarquardtOptimizer lmo(graph_, values_, lmp);
-    gtsam::Values result = lmo.optimize();
-#ifdef DEBUG_PRINT
+#endif
+    gtsam::Values result;
+    double err = tryOptimization(&result, graph_, values_, "TERMINATION",
+                                 /*num iter*/ 100);
+    if (err > maxError_) {
+      ROS_WARN("ERROR: camera calibration not converged!");
+    }
+#ifdef DEBUG_PRINT_OPT
     cout << "------------------------------------------" << endl;
     result.print();
     cout << "-------------- SUCCESS -----------------" << endl;
-#endif    
     printCameraPoses(result);
+#endif    
     return (result);
   }
+
 
 
   gtsam::Symbol CalibTool::getObjectCoordSym(const Tag &tag, int corner) {
@@ -234,6 +271,7 @@ namespace bgp_calib {
     exit(-1);
   }
 
+
   void CalibTool::insertTagIfNew(int frame_num, int camid,
                                  const apriltag_msgs::Apriltag &otag) {
     if (obsTags_.count(frame_num) != 0
@@ -256,7 +294,7 @@ namespace bgp_calib {
         // this will also insert the object coordinates X if needed!
         gtsam::Symbol xsym = getObjectCoordSym(tag, i);
         // add ref frame factor and corresponding values
-        gtsam::Symbol wsym('w', 4 * tag.id + i);
+        gtsam::Symbol wsym = getWSym(tag.id, i);
         graph_.push_back(gtsam::ReferenceFrameFactor<gtsam::Point3,
                          gtsam::Pose3>(xsym, osym, wsym, noise));
         gtsam::Point3 oX = values_.at<gtsam::Point3>(xsym);
@@ -275,21 +313,161 @@ namespace bgp_calib {
     }
     return (haveAllFrames);
   }
-  
-  bool CalibTool::tagObserved(const ros::Time &t,
-                              int camid, const apriltag_msgs::Apriltag &obstag) {
+
+  int CalibTool::frameObserved(const apriltag_msgs::ApriltagArrayStamped::ConstPtr &msg,
+                               int camid) {
+    const ros::Time &t = msg->header.stamp;
     if (camid < 0 || camid > cam_.size()) {
       ROS_ERROR("invalid cam id %d, total cams: %d", camid, (int)cam_.size());
+      return (0);
+    }
+    CamPtr &c = cam_[camid];
+    int frame_num = c->getFrameNum(t);
+    
+    int numUsed(0);
+    for (const auto &tag: msg->apriltags) {
+      if (tagObserved(frame_num, camid, tag)) {
+        numUsed++;
+      }
+    }
+    if (numUsed > 0) {
+      if (!makeCameraPositionGuess(frame_num, camid)) {
+        ROS_ERROR("cannot find camera position guess for frame %d cam %s", frame_num,
+                  c->getName().c_str());
+        return (0);
+      }
+    }
+    std::cout << "cam " << camid << " processed " << numUsed << " of " <<
+      msg->apriltags.size() << " tags!" << std::endl;
+    return (numUsed);
+  }
+
+  bool CalibTool::makeCameraPositionGuess(int frame_num, int camid) {
+    gtsam::Symbol csym = getWorldToCamSym(camid, frame_num);
+    CamPtr &c = cam_[camid];
+    
+    if (!values_.exists(csym)) {
+      gtsam::Pose3 wTc = guessPoseFromHomographies(frame_num, camid);
+      print_trans("wTc", wTc);
+      values_.insert(csym, wTc);
+    }
+    
+    double  initSearchSize(0.5);
+    RandEng	 randomEngine;
+    RandDist distTrans(0, initSearchSize); // mu, sigma for trans
+    RandDist distRot(0, M_PI);		         // mu, sigma for rotations
+    RandGen	 rgt(randomEngine, distTrans);	 // random translation generator
+    RandGen  rgr(randomEngine, distRot);	 // random angle generator
+
+    const int numTries(100);
+    const int maxIter(100);
+
+    gtsam::Values bestValues;
+    double err = tryOptimization(&bestValues, graph_, values_, "SILENT", maxIter);
+    ROS_INFO_STREAM("cam " << c->getName() << " optimizer error on first guess try: " << err);
+    if (err > maxError_) {
+      ROS_WARN("initial guess for cam %s position had error of %f > %f,"
+               " resorting to random guessing!", c->getName().c_str(),
+               err, maxError_);
+    }
+    double minError(1e50);
+    for (int i = 0; i < numTries && err > maxError_; i++) {
+      // cannot get it done with reasonable starting guess,
+      // resort to random guessing
+      const gtsam::Pose3 rp = makeRandomPose(&rgr, &rgt);
+      //cout << "using random pose: " << rp << endl;
+      updateStartingPose(frame_num, camid, rp);
+      gtsam::Values result;
+      err = tryOptimization(&result, graph_, values_,
+                            "SILENT", maxIter);
+      if (err < minError) {
+        bestValues = result;
+        minError = err;
+      }
+    }
+    if (err > maxError_) {
+      ROS_WARN_STREAM("init cam position failed, best error was: " << minError <<
+                       " > max error of "  << maxError_);
+      ROS_WARN("consider bumping max_error!");
+      values_ = bestValues; // use the best values we found
       return (false);
     }
+
+    return (true);
+  }
+
+  static gtsam::Pose3 averagePose(const std::vector<gtsam::Pose3> &poses) {
+    // This is a really dirty hack to average over rotations and positions.
+    // Any outliers, who knows what happens. A better way would
+    // be to compute a homography from all points that lie in a plane.
+    if (poses.empty()) {
+      return (gtsam::Pose3());
+    }
+    gtsam::Point3 sumTrans;
+    Eigen::Matrix<double, 4, 4> qq = Eigen::Matrix<double, 4, 4>::Zero();
+
+    for (const auto &p: poses) {
+      sumTrans = sumTrans + p.translation();
+      gtsam::Quaternion q = p.rotation().toQuaternion();
+      Eigen::Matrix<double, 4, 1> qv{q.w(), q.x(), q.y(), q.z()};
+      qq = qq + (qv * qv.transpose());
+    }
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double, 4, 4>> es(qq);
+    Eigen::Matrix<double, 4, 4> evec = es.eigenvectors();
+    int col = 3;
+    gtsam::Quaternion qavg(evec(0,col), evec(1,col), evec(2,col), evec(3,col));
+    gtsam::Pose3 avgPose(gtsam::Rot3(qavg), sumTrans / (double)poses.size());
+    return (avgPose);
+  }
+
+  gtsam::Pose3 CalibTool::guessPoseFromHomographies(int frame_num, int camid) {
+    CamPtr &c = cam_[camid];
+    gtsam::Symbol csym = getWorldToCamSym(camid, frame_num);
+    std::vector<gtsam::Pose3> poses;
+    std::vector<gtsam::Point2> tagImagePoints;
+    for (gtsam::NonlinearFactorGraph::const_iterator f = graph_.begin();
+         f != graph_.end(); ++f) {
+      gtsam::NonlinearFactor const &fac = *(*f);
+      // iterate through all keys that are referred to
+      for (gtsam::Factor::const_iterator it = fac.begin(); it != fac.end(); ++it) {
+        gtsam::Symbol sym(*it);
+        if (csym == sym) {
+          auto it2 = it; it2++;
+          gtsam::Symbol wsym(*it2);
+          if (wsym.chr() == 'w') {
+            int tagid(0), corner(0);
+            getTagAndCornerFromIndex(wsym.index(), &tagid, &corner);
+            const ProjectionFactor &pf = dynamic_cast<const ProjectionFactor &>(fac);
+            tagImagePoints.push_back(pf.measured());
+            if (tagImagePoints.size() == 4) {
+              const Tag &tag = tags_[tagid];
+              //
+              // add guess for cTw = cTo * oTw
+              //
+              gtsam::Pose3 cTo = guessPose(c, tag, tagImagePoints);
+              gtsam::Pose3 wTc = tag.pose.compose(cTo.inverse());
+              poses.push_back(wTc);
+              tagImagePoints.clear();
+            }
+          }
+        }
+      }
+    }
+    // now average over poses.
+    gtsam::Pose3 avg = averagePose(poses);
+    return (avg);
+	}
+  
+  bool CalibTool::tagObserved(int frame_num,
+                              int camid, const apriltag_msgs::Apriltag &obstag) {
     if (tags_.count(obstag.id) == 0) {
       return (false);
     }
+    //cout << "using tag: " << obstag.id << endl;
     CamPtr &c = cam_[camid];
 
     const Tag &tag = tags_[obstag.id];
 
-    int frame_num = c->getFrameNum(t);
     insertTagIfNew(frame_num, camid, obstag);
 
     //
@@ -300,33 +478,49 @@ namespace bgp_calib {
     gtsam::Symbol csym = getWorldToCamSym(camid, frame_num);
     
     for (int i = 0; i < 4; i++) {   // loop over corners
-      gtsam::Symbol wsym('w', 4 * tag.id + i);
+      gtsam::Symbol wsym = getWSym(tag.id, i);
       gtsam::Point2 uv(obstag.corners[i].x, obstag.corners[i].y);
-      graph_.push_back(gtsam::GenericProjectionFactor<gtsam::Pose3,
-                       gtsam::Point3,
-                       gtsam::Cal3DS2>(uv, pixelNoise, csym, wsym, camModel));
+      graph_.push_back(ProjectionFactor(uv, pixelNoise, csym, wsym, camModel));
     }
 
-    //
-    // add guess for cTw = cTo * oTw
-    //
-    if (!values_.exists(csym)) {
-      gtsam::Pose3 cTo = guessPose(c, tag, obstag.corners);
-      //print_trans("cTo", cTo);
-      //print_trans("wTo", tag.pose);
-      gtsam::Pose3 wTc = tag.pose.compose(cTo.inverse());
-      //print_trans("wTc", wTc);
-      values_.insert(csym, wTc);
-    }
 
-    //gtsam::Values result = optimize();
-    //testReprojection(result, ip, camModel);
 //#define CLEAR_IT
 #ifdef CLEAR_IT
     values_.clear();
     graph_.erase(graph_.begin(), graph_.end());
 #endif
     return (true);
+  }
+
+  
+  gtsam::Pose3 CalibTool::makeRandomPose(RandGen *rgr, RandGen *rgt) {
+    gtsam::Point3 t((*rgt)(), (*rgt)(), (*rgt)());
+    gtsam::Point3 om = gtsam::Point3((*rgr)(), (*rgr)(), (*rgr)());
+    return (gtsam::Pose3(gtsam::Rot3::rodriguez(om.x(),om.y(),om.z()), gtsam::Point3(t)));
+  }
+
+  void CalibTool::updateStartingPose(int frame_num, int camid, const gtsam::Pose3 &wTc) {
+    gtsam::Symbol csym = getWorldToCamSym(camid, frame_num);
+    gtsam::Values::const_iterator it;
+    const gtsam::Values &values = values_;
+    for (it = values.begin(); it != values.end(); ++it) {
+      gtsam::Symbol sym(it->key);
+      if (sym == csym) {
+        values_.update(sym, wTc);
+      }
+    }
+  }
+
+  void CalibTool::updateStartingPoseAllFrames(int camid, const gtsam::Pose3 &wTc) {
+    char ch = 'c' + camid;
+    gtsam::Values::const_iterator it;
+    const gtsam::Values &values = values_;
+    for (it = values.begin(); it != values.end(); ++it) {
+      gtsam::Symbol sym(it->key);
+      if (sym.chr() == ch) {
+        values_.update(sym, wTc);
+      }
+    }
   }
 
   void CalibTool::printResults() const {
@@ -336,7 +530,7 @@ namespace bgp_calib {
       cout << " -------- frame: " << frame_num << endl;
       for (auto const &camkv: framekv.second) {
         int camid = camkv.first;
-        cout << " camid: " << camid << endl;
+        cout << " camera: " << cam_[camid]->getName() << endl;
         gtsam::Symbol csym = getWorldToCamSym(camid, frame_num);
         gtsam::Pose3 cTw = values_.at<gtsam::Pose3>(csym);
         print_trans("cTw" + std::to_string(camid), cTw);
@@ -439,25 +633,6 @@ namespace bgp_calib {
     Tag t(id, tagSizeToNumber_[size], size,
           trans, makePoseNoise(angnoise, posnoise));
     tags_[id] = t;
-#ifdef TEST_JUNK
-    // ------------ test code --------------
-    apriltag_msgs::Apriltag ttag;
-    ttag.id = id;
-    Eigen::Vector3d rv(0.0, 0.0, M_PI * 0.25);
-    gtsam::Rot3   fR(rotmat(rv));
-    gtsam::Pose3 ft(fR, gtsam::Point3(0, 0, 0));
-    cout << "transform: " << ft << endl;
-    for (int i = 0; i < 4; i++) {
-      gtsam::Point3 p = t.getObjectCorner(i);
-      gtsam::Point3 tp = ft.transform_to(p);
-      cout << "transformed point: " << tp << endl;
-      ttag.corners[i].x = tp.x();
-      ttag.corners[i].y = tp.y();
-    }
-    tagObserved(ros::Time::now(), 0, ttag);
-    // ---------- end test code --------------
-    exit(-1);
-#endif    
 
     return (true);
   }

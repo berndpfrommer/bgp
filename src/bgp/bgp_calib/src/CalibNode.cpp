@@ -20,13 +20,7 @@ namespace bgp_calib {
                          int camid) {
     // if this is first frame for camera, process it
     if (!calibTool_.gotFrames(camid)) {
-      int numUsed(0);
-      for (const auto &tag: msg->apriltags) {
-        bool used = calibTool_.tagObserved(msg->header.stamp, camid, tag);
-        if (used) numUsed++;
-      }
-      std::cout << "cam " << camid << " processed " << numUsed << " of " <<
-        msg->apriltags.size() << " tags!" << std::endl;
+      calibTool_.frameObserved(msg, camid);
     }
     if (calibTool_.allCamerasHaveFrames()) {
       calibTool_.optimize();
@@ -34,7 +28,11 @@ namespace bgp_calib {
       std::string calibFileName("calib.yaml");
       nh_.getParam("calib_file_name", calibFileName);
       calibTool_.writeCalibrationFile(calibFileName);
+#ifdef RUN_CONTINUOUSLY
+      calibTool_.clear();
+#else
       ros::shutdown();
+#endif
     }
   }
 
@@ -67,6 +65,9 @@ namespace bgp_calib {
 
     XmlRpc::XmlRpcValue poses;
     nh_.getParam("tag_poses", poses);
+    double maxError(200.0);
+    nh_.getParam("max_error", maxError);
+    calibTool_.setMaxError(maxError);
 
     // iterate through all poses
     for (uint32_t i = 0; i < poses.size(); i++) {
@@ -80,7 +81,7 @@ namespace bgp_calib {
            it != poses[i].end(); ++it) {
         std::string field = it->first;
         if (field == "id") {           id = static_cast<int>(it->second);
-          ROS_INFO("found tag with id %d", id);
+          //ROS_INFO("found tag with id %d", id);
         } else  if (field == "size") { sz = static_cast<double>(it->second);
         } else  if (field == "uncertainty") {
           uc = static_cast<double>(it->second);
@@ -92,7 +93,7 @@ namespace bgp_calib {
       }
       calibTool_.addTag(id, sz, anglevec, center, rotnoise, posnoise);
     }
-    ROS_INFO("found poses for %d tags", poses.size());
+    ROS_INFO("loaded poses for %d tags", poses.size());
     return (true);
   }
 }  // namespace

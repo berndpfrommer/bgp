@@ -15,6 +15,10 @@
 #include <gtsam/geometry/Point3.h>
 #include <gtsam/geometry/Pose3.h>
 
+#include <boost/random/normal_distribution.hpp>
+#include <boost/random/variate_generator.hpp>
+#include <boost/random/mersenne_twister.hpp>
+
 #include <ros/ros.h>
 #include <apriltag_msgs/Apriltag.h>
 #include <string>
@@ -46,20 +50,29 @@ namespace bgp_calib {
     CalibTool(const CalibTool&) = delete;
     CalibTool& operator=(const CalibTool&) = delete;
 
-    bool tagObserved(const ros::Time &t, int camid,
-                     const apriltag_msgs::Apriltag &obstag);
     bool addTag(int id, double size, const Eigen::Vector3d &anglevec,
                 const Eigen::Vector3d &center,
                 const Eigen::Vector3d &angnoise,
                 const Eigen::Vector3d &posnoise);
     void addCamera(CamPtr cam) { cam_.push_back(cam); }
+    int frameObserved(const apriltag_msgs::ApriltagArrayStamped::ConstPtr &msg,
+                      int camid);
     void printResults() const;
     void test();
     gtsam::Values  optimize();
     bool allCamerasHaveFrames() const;
     bool gotFrames(int camid) const { return (cam_[camid]->gotFrames()); }
     void writeCalibrationFile(const std::string &filename) const;
+    void clear();
+    void setMaxError(double e) { maxError_ = e; }
   private:
+    typedef boost::random::mt19937 RandEng;
+    typedef boost::random::normal_distribution<double> RandDist;
+    typedef boost::random::variate_generator<RandEng, RandDist> RandGen;
+
+    bool tagObserved(int frame_num, int camid,
+                     const apriltag_msgs::Apriltag &obstag);
+
     void  testReprojection(const gtsam::Values &values,
                            const std::vector<gtsam::Point2> &ips,
                            boost::shared_ptr<gtsam::Cal3DS2> camModel);
@@ -73,16 +86,22 @@ namespace bgp_calib {
     gtsam::Symbol getObjectCoordSym(const Tag &tag, int corner);
     void insertTagIfNew(int frame_num, int camid,
                         const apriltag_msgs::Apriltag &otag);
+    gtsam::Pose3 makeRandomPose(RandGen *rgr, RandGen *rgt);
+    bool makeCameraPositionGuess(int frame_num, int camid);
+    void updateStartingPoseAllFrames(int camid, const gtsam::Pose3 &wTc);
+    void updateStartingPose(int frame_num, int camid, const gtsam::Pose3 &wTc);
+    gtsam::Pose3 guessPoseFromHomographies(int frame_num, int camid);
     // -------------------------------------------------------------
     typedef std::map<int, apriltag_msgs::Apriltag> TagsMap;
     typedef std::map<int, TagsMap>        CamToTagsMap;
     
-    std::map<int, CamToTagsMap> obsTags_; // observed tags for each frame
+    std::map<int, CamToTagsMap>   obsTags_; // observed tags for each frame
     gtsam::Values                 values_;
     gtsam::NonlinearFactorGraph   graph_;
     std::map<int,    Tag>         tags_;
     std::map<double, int>         tagSizeToNumber_;
     std::vector<CamPtr>           cam_;
+    double                        maxError_{200};
   };
 
 }

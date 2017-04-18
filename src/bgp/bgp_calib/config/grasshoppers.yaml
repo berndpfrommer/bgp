@@ -8,8 +8,8 @@ cam0:
 #  distortion_coeffs: [-0.163620, 0.086008, 0.000376, -0.000640, 0.000000]
   distortion_coeffs: [0, 0, 0, 0, 0]
   distortion_model: equidistant
-  intrinsics: [1497.527689, 1494.619970, 1017.040351, 1030.964561]
-  resolution: [2048, 2048]
+  intrinsics: [748.7638,  747.3100,  508.5202, 515.4823]
+  resolution: [1024, 1024]
   rostopic: image_raw
 cam1:
   T_cam_imu:
@@ -21,8 +21,8 @@ cam1:
 #  distortion_coeffs: [-0.163620, 0.086008, 0.000376, -0.000640, 0.000000]
   distortion_coeffs: [0, 0, 0, 0, 0]
   distortion_model: equidistant
-  intrinsics: [1497.527689, 1494.619970, 1017.040351, 1030.964561]
-  resolution: [2048, 2048]
+  intrinsics: [748.7638,  747.3100,  508.5202,  515.4823]
+  resolution: [1024, 1024]
   rostopic: image_raw
 cam2:
   T_cam_imu:
@@ -34,8 +34,8 @@ cam2:
 #  distortion_coeffs: [-0.163620, 0.086008, 0.000376, -0.000640, 0.000000]
   distortion_coeffs: [0, 0, 0, 0, 0]
   distortion_model: equidistant
-  intrinsics: [1497.527689, 1494.619970, 1017.040351, 1030.964561]
-  resolution: [2048, 2048]
+  intrinsics: [748.7638,  747.3100,  508.5202,  515.4823]
+  resolution: [1024, 1024]
   rostopic: image_raw
 cam3:
   T_cam_imu:
@@ -47,6 +47,6 @@ cam3:
 #  distortion_coeffs: [-0.163620, 0.086008, 0.000376, -0.000640, 0.000000]
   distortion_coeffs: [0, 0, 0, 0, 0]
   distortion_model: equidistant
-  intrinsics: [1497.527689, 1494.619970, 1017.040351, 1030.964561]
-  resolution: [2048, 2048]
+  intrinsics: [748.7638,  747.3100,  508.5202,  515.4823]
+  resolution: [1024, 1024]
   rostopic: image_raw
