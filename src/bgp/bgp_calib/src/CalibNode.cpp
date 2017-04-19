@@ -26,18 +26,19 @@ namespace bgp_calib {
       calibTool_.optimize();
       calibTool_.printResults();
       std::string calibFileName("calib.yaml"), tagPoses("tag_poses.txt"),
-        camPoses("cam_poses.txt");
+        camPoses("cam_poses.txt"), reprojData("reproj.txt"),
+        reprojDiag("reproj_diag.txt");
       nh_.getParam("calib_file_name", calibFileName);
       nh_.getParam("output_tag_poses_file", tagPoses);
-      nh_.getParam("output_cam_poses_file", camPoses);      
+      nh_.getParam("output_cam_poses_file", camPoses);
+      nh_.getParam("diagnostics_file", reprojDiag);
+      nh_.getParam("reprojection_file", reprojData);
       calibTool_.writeCalibrationFile(calibFileName);
       calibTool_.writeTagPoses(tagPoses);
       calibTool_.writeCameraPoses(camPoses);
-#ifdef RUN_CONTINUOUSLY
-      calibTool_.clear();
-#else
+      calibTool_.writeReprojectionData(reprojData);
+      calibTool_.testReprojection(reprojDiag);
       ros::shutdown();
-#endif
     }
   }
 

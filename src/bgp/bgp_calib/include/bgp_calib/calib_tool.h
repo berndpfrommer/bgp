@@ -67,7 +67,8 @@ namespace bgp_calib {
     void writeCalibrationFile(const std::string &filename) const;
     void writeCameraPoses(const std::string &filename) const;
     void writeTagPoses(const std::string &filename) const;
-
+    void writeReprojectionData(const std::string &filename) const;
+    void testReprojection(const std::string &filename) const;
   private:
     typedef boost::random::mt19937 RandEng;
     typedef boost::random::normal_distribution<double> RandDist;
@@ -76,9 +77,6 @@ namespace bgp_calib {
     bool tagObserved(int frame_num, int camid,
                      const apriltag_msgs::Apriltag &obstag);
 
-    void  testReprojection(const gtsam::Values &values,
-                           const std::vector<gtsam::Point2> &ips,
-                           boost::shared_ptr<gtsam::Cal3DS2> camModel);
     typedef gtsam::noiseModel::Isotropic::shared_ptr	IsotropicNoisePtr;
     typedef gtsam::noiseModel::Diagonal::shared_ptr		DiagonalNoisePtr;
     typedef gtsam::ReferenceFrameFactor<gtsam::Point3, gtsam::Pose3> RefFrameFactor;
@@ -91,7 +89,6 @@ namespace bgp_calib {
                         const apriltag_msgs::Apriltag &otag);
     gtsam::Pose3 makeRandomPose(RandGen *rgr, RandGen *rgt);
     bool makeCameraPositionGuess(int frame_num, int camid);
-    void updateStartingPoseAllFrames(int camid, const gtsam::Pose3 &wTc);
     void updateStartingPose(int frame_num, int camid, const gtsam::Pose3 &wTc);
     gtsam::Pose3 guessPoseFromHomographies(int frame_num, int camid);
     // -------------------------------------------------------------

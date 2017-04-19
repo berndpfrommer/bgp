@@ -13,34 +13,44 @@
 #include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
 #include <gtsam/nonlinear/Marginals.h>
 #include <Eigen/Eigenvalues>
+#include <boost/filesystem.hpp>
 #include <string>
 #include <cmath>
 #include <iostream>
 #include <fstream>
+#include <sstream>
 
 using std::cout;
 using std::endl;
 
 namespace bgp_calib {
   typedef gtsam::GenericProjectionFactor<gtsam::Pose3, gtsam::Point3, gtsam::Cal3DS2> ProjectionFactor;
-  static std::vector<gtsam::Point3> wps;
-  static std::vector<std::pair<double, double>> ips;
+
+  static std::vector<gtsam::Point3> wps;  // for debugging
+  static std::vector<std::pair<double, double>> ips; // for debugging
+
   static int to_point_id(int tagid, int corner) {
     return (tagid * 4 + corner);
   }
-  static char to_cam_sym(int id) {
-    return ('a' + (uint8_t)id);
-  }
-  static gtsam::Symbol getWorldToCamSym(int camid, int frame) {
+  static gtsam::Symbol getCamToWorldSym(int camid, int frame) {
     return (gtsam::Symbol('c' + camid, frame));
   }
   static gtsam::Symbol getWSym(int tagid, int corner) {
     return (gtsam::Symbol('w', 4 * tagid + corner));
   }
+  static gtsam::Symbol getOSym(int tagid) {
+    return (gtsam::Symbol('o', tagid));
+  }
 
   static void getTagAndCornerFromIndex(int index, int *tagid, int *corner) {
     *corner = index % 4;
     *tagid = index / 4;
+  }
+
+  static std::ofstream open_file(const std::string &filename) {
+    boost::filesystem::path fname(filename);
+    boost::filesystem::create_directories(fname.parent_path());
+    return (std::ofstream(filename));
   }
 
   static void print_pose(std::ostream &of, const gtsam::Pose3 &p) {
@@ -51,31 +61,22 @@ namespace bgp_calib {
     of << "     " << M(3,0) << ", " << M(3,1) << ", " << M(3,2) << ", " << M(3,3) <<"]"<< endl;
   }
 
-#if 0  
-  static void print_trans(std::string name, const gtsam::Pose3 &p) {
-    cout << name << "R = [";
-    cout << p.rotation().matrix();
-    cout << "];" << endl;
-    cout << name << "T = ";
-    cout << p.translation();
-    cout << ";" << endl;
-  }
-#else
-  static void print_trans(std::string name, const gtsam::Pose3 &p) {
-    cout << name << " = [..." <<  endl;
+  static std::string to_string(std::string name, const gtsam::Pose3 &p) {
+    std::stringstream ss;
+    ss << name << " = [..." <<  endl;
     const auto H = p.matrix();
     for (int i = 0; i < 4; i++) {
       for (int j = 0; j < 4; j++) {
-        cout << ", " << H(i,j);
+        ss << ", " << H(i,j);
       }
       if (i < 3) {
-        cout << "; ..." << endl;
+        ss << "; ..." << endl;
       } else {
-        cout << "];" << endl;
+        ss << "];" << endl;
       }
     }
+    return (ss.str());
   }
-#endif
   
   static CalibTool::PoseNoise makePoseNoise(const Eigen::Vector3d &a,
                                             const Eigen::Vector3d &p) {
@@ -140,7 +141,7 @@ namespace bgp_calib {
       gtsam::LevenbergMarquardtParams lmp;
       lmp.setVerbosity(verbosity);
       lmp.setMaxIterations(maxIter);
-      lmp.setAbsoluteErrorTol(1e-5);
+      lmp.setAbsoluteErrorTol(1e-7);
       lmp.setRelativeErrorTol(0);
       gtsam::LevenbergMarquardtOptimizer lmo(graph, values, lmp);
       *result = lmo.optimize();
@@ -245,7 +246,7 @@ namespace bgp_calib {
     // find tag
     const Tag &tag = tags_[otag.id];
     // add wTo transform and prior factor for it
-    gtsam::Symbol osym('o', tag.id);   // wTo
+    gtsam::Symbol osym(getOSym(tag.id));   // wTo
     if (!values_.exists(osym)) {
       graph_.push_back(gtsam::PriorFactor<gtsam::Pose3>(osym, tag.pose, tag.noise));
       values_.insert(osym, tag.pose);
@@ -298,18 +299,18 @@ namespace bgp_calib {
         return (0);
       }
     }
-    std::cout << "cam " << camid << " processed " << numUsed << " of " <<
-      msg->apriltags.size() << " tags!" << std::endl;
+    ROS_INFO_STREAM("cam " << c->getName() << " processed " << numUsed << " of " <<
+                    msg->apriltags.size() << " tags!");
     return (numUsed);
   }
 
   bool CalibTool::makeCameraPositionGuess(int frame_num, int camid) {
-    gtsam::Symbol csym = getWorldToCamSym(camid, frame_num);
+    gtsam::Symbol csym = getCamToWorldSym(camid, frame_num);
     CamPtr &c = cam_[camid];
     
     if (!values_.exists(csym)) {
       gtsam::Pose3 wTc = guessPoseFromHomographies(frame_num, camid);
-      print_trans("wTc", wTc);
+      //cout << to_string("wTc", wTc);
       values_.insert(csym, wTc);
     }
     
@@ -383,7 +384,7 @@ namespace bgp_calib {
 
   gtsam::Pose3 CalibTool::guessPoseFromHomographies(int frame_num, int camid) {
     CamPtr &c = cam_[camid];
-    gtsam::Symbol csym = getWorldToCamSym(camid, frame_num);
+    gtsam::Symbol csym = getCamToWorldSym(camid, frame_num);
     std::vector<gtsam::Pose3> poses;
     std::vector<gtsam::Point2> tagImagePoints;
     for (gtsam::NonlinearFactorGraph::const_iterator f = graph_.begin();
@@ -403,7 +404,7 @@ namespace bgp_calib {
             if (tagImagePoints.size() == 4) {
               const Tag &tag = tags_[tagid];
               //
-              // add guess for cTw = cTo * oTw
+              // add guess for wTc = wTo * oTc
               //
               gtsam::Pose3 cTo = guessPose(c, tag, tagImagePoints);
               gtsam::Pose3 wTc = tag.pose.compose(cTo.inverse());
@@ -436,7 +437,7 @@ namespace bgp_calib {
     //
     boost::shared_ptr<gtsam::Cal3DS2> camModel = makeCameraModel(c);
     IsotropicNoisePtr pixelNoise = gtsam::noiseModel::Isotropic::Sigma(2, 2.0);
-    gtsam::Symbol csym = getWorldToCamSym(camid, frame_num);
+    gtsam::Symbol csym = getCamToWorldSym(camid, frame_num);
     
     for (int i = 0; i < 4; i++) {   // loop over corners
       gtsam::Symbol wsym = getWSym(tag.id, i);
@@ -461,7 +462,7 @@ namespace bgp_calib {
   }
 
   void CalibTool::updateStartingPose(int frame_num, int camid, const gtsam::Pose3 &wTc) {
-    gtsam::Symbol csym = getWorldToCamSym(camid, frame_num);
+    gtsam::Symbol csym = getCamToWorldSym(camid, frame_num);
     gtsam::Values::const_iterator it;
     const gtsam::Values &values = values_;
     for (it = values.begin(); it != values.end(); ++it) {
@@ -472,44 +473,33 @@ namespace bgp_calib {
     }
   }
 
-  void CalibTool::updateStartingPoseAllFrames(int camid, const gtsam::Pose3 &wTc) {
-    char ch = 'c' + camid;
-    gtsam::Values::const_iterator it;
-    const gtsam::Values &values = values_;
-    for (it = values.begin(); it != values.end(); ++it) {
-      gtsam::Symbol sym(it->key);
-      if (sym.chr() == ch) {
-        values_.update(sym, wTc);
-      }
-    }
-  }
-
   void CalibTool::printResults() const {
-    cout << "======================= result ================" << endl;
+    ROS_INFO_STREAM("======================= result ================");
     for (auto const &framekv: obsTags_) {
       int frame_num = framekv.first;
-      cout << " -------- frame: " << frame_num << endl;
+      ROS_INFO_STREAM(" --- frame: " << frame_num);
       for (auto const &camkv: framekv.second) {
         int camid = camkv.first;
-        cout << " camera: " << cam_[camid]->getName() << endl;
-        gtsam::Symbol csym = getWorldToCamSym(camid, frame_num);
-        gtsam::Pose3 cTw = values_.at<gtsam::Pose3>(csym);
-        print_trans("cTw" + std::to_string(camid), cTw);
+        ROS_INFO_STREAM(" camera: " << cam_[camid]->getName());
+        gtsam::Symbol csym = getCamToWorldSym(camid, frame_num);
+        gtsam::Pose3 wTc = values_.at<gtsam::Pose3>(csym);
+        ROS_INFO_STREAM(to_string("wTc" + std::to_string(camid), wTc));
       }
     }
   }
 
   void CalibTool::writeCalibrationFile(const std::string &filename) const {
-    std::ofstream of(filename);
+    std::ofstream of = open_file(filename);
+    ROS_INFO_STREAM("writing extrinsic calibration to file " << filename);
     for (int camid = 0; camid < cam_.size(); camid++) {
       const auto &cam = *cam_[camid];
       int frame_num = 0;
-      gtsam::Symbol csym = getWorldToCamSym(camid, frame_num);
+      gtsam::Symbol csym = getCamToWorldSym(camid, frame_num);
       if (values_.exists(csym)) {
-        gtsam::Pose3 cTw = values_.at<gtsam::Pose3>(csym);
+        gtsam::Pose3 wTc = values_.at<gtsam::Pose3>(csym);
         of << cam.getName() << ":" << std::endl;
         of << "  T_cam_imu:" << std::endl;
-        print_pose(of, cTw);
+        print_pose(of, wTc);
         cam.print_intrinsics(of);
         of << "  rostopic: " << cam.getName() << std::endl;
       }
@@ -517,24 +507,25 @@ namespace bgp_calib {
   }
 
   void CalibTool::writeCameraPoses(const std::string &filename) const {
-    std::ofstream of(filename);
+    ROS_INFO_STREAM("writing camera poses to file " << filename);
+    std::ofstream of = open_file(filename);
     for (int camid = 0; camid < cam_.size(); camid++) {
       const auto &cam = *cam_[camid];
       int frame_num = 0;
-      gtsam::Symbol csym = getWorldToCamSym(camid, frame_num);
+      gtsam::Symbol csym = getCamToWorldSym(camid, frame_num);
       if (values_.exists(csym)) {
-        gtsam::Pose3 cTw = values_.at<gtsam::Pose3>(csym);
-        const gtsam::Point3 rvec = gtsam::Rot3::Logmap(cTw.rotation());
-        gtsam::Point3 t = cTw.translation();
+        gtsam::Pose3 wTc = values_.at<gtsam::Pose3>(csym);
+        const gtsam::Point3 rvec = gtsam::Rot3::Logmap(wTc.rotation());
+        gtsam::Point3 t = wTc.translation();
         of << camid << " " << rvec.x() << " " << rvec.y() << " " << rvec.z()
            << " " << t.x() << " " << t.y() << " " << t.z() << endl;
       }
     }
   }
   void CalibTool::writeTagPoses(const std::string &filename) const {
+    ROS_INFO_STREAM("writing tag poses to file " << filename);
+    std::ofstream of = open_file(filename);
     gtsam::Marginals marginals(graph_, optimizedValues_);
-
-    std::ofstream of(filename);
     gtsam::Values::const_iterator it;
     const gtsam::Values &values = optimizedValues_;
     for (it = values.begin(); it != values.end(); ++it) {
@@ -558,65 +549,135 @@ namespace bgp_calib {
       }
     }
   }
-  
-  void CalibTool::testReprojection(const gtsam::Values &values,
-                                   const std::vector<gtsam::Point2> &ips,
-                                   boost::shared_ptr<gtsam::Cal3DS2> camModel) {
-    std::vector<std::vector<double>> a;
-    cout << "====================== reprojection test " << endl;
-    for (auto const &framekv: obsTags_) {
+
+  void CalibTool::writeReprojectionData(const std::string &filename) const {
+    ROS_INFO_STREAM("writing reprojection data to file " << filename);
+    std::ofstream of = open_file(filename);
+    for (auto const &framekv: obsTags_) { // loop over all frames
       int frame_num = framekv.first;
-      for (auto const &camkv: framekv.second) {
+      for (auto const &camkv: framekv.second) { // loop over all cameras
         int camid = camkv.first;
-        gtsam::Symbol csym = getWorldToCamSym(camid, frame_num);
-        gtsam::Pose3 cTw = values.at<gtsam::Pose3>(csym);
-        print_trans("cTw", cTw);
-        for (auto const &tagkv: camkv.second) {
-          cout << " ---------- " << tagkv.first << " --------------" << endl;
-          const auto &obsTag = tagkv.second;
-          const Tag &tag = tags_[tagkv.first];
-          gtsam::Symbol osym = getObjectToCamSym(camid, frame_num, tag.id);
-          gtsam::Pose3 oTc = values.at<gtsam::Pose3>(osym);
-          print_trans("wTo", tag.pose);
-          print_trans("oTc", oTc);
+        const CamPtr &c = cam_[camid];
+
+        boost::shared_ptr<gtsam::Cal3DS2> camModel = makeCameraModel(c);
+
+        gtsam::Symbol csym = getCamToWorldSym(camid, frame_num);
+        gtsam::Pose3 wTc = optimizedValues_.at<gtsam::Pose3>(csym);
+        for (auto const &tagkv: camkv.second) { // loop through all tags
+          const auto &obsTag = tagkv.second;  // observed tag with image points
+          std::map<int, Tag>::const_iterator ti = tags_.find(tagkv.first);
+          if (ti == tags_.end()) {
+            continue;
+          }
+          const Tag &tag = ti->second;
           for (int i = 0; i < 4; i++) {   // loop over corners
-            gtsam::Symbol xsym = getObjectCoordSym(tag, i);
-            gtsam::Point3 oX = values.at<gtsam::Point3>(xsym); // object point
-            gtsam::Point2 uv(obsTag.corners[i].x, obsTag.corners[i].y);
-            gtsam::Point3 cX = oTc.inverse().transform_from(oX);
+            gtsam::Symbol wsym = getWSym(tag.id, i);
+            gtsam::Point3 wX_opt = optimizedValues_.at<gtsam::Point3>(wsym);
+            gtsam::Point2 ip(obsTag.corners[i].x, obsTag.corners[i].y);
             gtsam::Point3 wX = tag.getWorldCorner(i);
-            gtsam::PinholeCamera<gtsam::Cal3DS2> camera(cTw.inverse(), *camModel);
-            gtsam::PinholeCamera<gtsam::Cal3DS2> cam0(gtsam::Pose3(), *camModel);
-            gtsam::Point2 wpp = camera.project(wX);
-            gtsam::Point2 cpp = cam0.project(cX);
-            //
-            //
-            //
-            a.push_back(std::vector<double>());
-            auto &ab = a.back();
-            //    1      2      3     4     5     6  7  8  9    10    11    12
-            // fnum, camid, tagid, wX.x, wX.y, wX.z, u, v, wpu, wpv, cpu,  cpv
-            ab.push_back(frame_num);
-            ab.push_back(camid);
-            ab.push_back(tag.id);
-            ab.push_back(wX.x()); ab.push_back(wX.y()); ab.push_back(wX.z());
-            ab.push_back(uv.x()); ab.push_back(uv.y());
-            ab.push_back(wpp.x()); ab.push_back(wpp.y());
-            ab.push_back(cpp.x()); ab.push_back(cpp.y());
+            gtsam::PinholeCamera<gtsam::Cal3DS2> camera(wTc, *camModel);
+            gtsam::Point2 ipp  = camera.project(wX);
+            gtsam::Point2 ippo = camera.project(wX_opt);
+            of << frame_num << " " << camid << " " << tag.id << " " << i
+               << " " << wX.x() << " " << wX.y() << " " << wX.z()
+               << " " << ip.x() << " " << ip.y()
+               << " " << ipp.x() << " " << ipp.y()
+               << " " << ippo.x() << " " << ippo.y()
+               << endl;
           }
         }
       }
     }
-
-    cout << "============== points =============" << endl;
-    cout << "a=[" << endl;
-    for (const auto& l: a) {
-      for (const auto& e: l) {
-        cout << " " << e;
-      }
-      cout << endl;
+  }
+  
+  struct Err {
+    double unrelaxed{0};
+    double relaxed{0};
+    int    count{0};
+    void add (const Err &e) {
+      unrelaxed += e.unrelaxed;
+      relaxed += e.relaxed;
+      count     += e.count;
     }
-    cout << "]" << endl;
+    void normalize() {
+      double n = (count > 0) ? (1.0/(double)count) : 0;
+      unrelaxed = std::sqrt(unrelaxed * n);
+      relaxed = std::sqrt(relaxed * n);
+    }
+  };
+  
+  static std::vector<std::pair<int, Err>> sort_errors(const std::map<int, Err> &errMap) {
+    auto cmp = [](std::pair<int,Err> const & a, std::pair<int,Err> const & b) {
+      return ((a.second.unrelaxed != b.second.unrelaxed) ?
+              (a.second.unrelaxed < b.second.unrelaxed) : (a.first < b.first));
+    };
+    std::vector<std::pair<int, Err>> tagsToErrPairs;
+    for (auto const &a : errMap) {
+      tagsToErrPairs.push_back(std::pair<int, Err>(a.first, a.second));
+    }
+    std::sort(tagsToErrPairs.begin(), tagsToErrPairs.end(), cmp);
+    return (tagsToErrPairs);
+  }
+  
+  void CalibTool::testReprojection(const std::string &filename) const {
+    ROS_INFO_STREAM("writing reprojection diagnostics to file " << filename);
+    std::ofstream of = open_file(filename);
+    std::map<int, Err> tagidToErr;
+    std::map<int, Err> camidToErr;
+    Err totalError;
+    for (auto const &framekv: obsTags_) { // loop over all frames
+      int frame_num = framekv.first;
+      for (auto const &camkv: framekv.second) { // loop over all cameras
+        int camid = camkv.first;
+        const CamPtr &c = cam_[camid];
+        boost::shared_ptr<gtsam::Cal3DS2> camModel = makeCameraModel(c);
+        gtsam::Symbol csym = getCamToWorldSym(camid, frame_num);
+        gtsam::Pose3 wTc = optimizedValues_.at<gtsam::Pose3>(csym);
+        for (auto const &tagkv: camkv.second) { // loop through all tags
+          const auto &obsTag = tagkv.second;  // observed tag with image points
+          std::map<int, Tag>::const_iterator ti = tags_.find(tagkv.first);
+          if (ti == tags_.end()) {
+            continue;
+          }
+          const Tag &tag = ti->second;
+          Err err;
+          for (int i = 0; i < 4; i++) {   // loop over corners
+            gtsam::Symbol wsym = getWSym(tag.id, i);
+            gtsam::Point3 wX_opt = optimizedValues_.at<gtsam::Point3>(wsym);
+            gtsam::Point2 ip(obsTag.corners[i].x, obsTag.corners[i].y);
+            gtsam::Point3 wX = tag.getWorldCorner(i);
+            gtsam::PinholeCamera<gtsam::Cal3DS2> camera(wTc, *camModel);
+            gtsam::Point2 ipp  = camera.project(wX);
+            gtsam::Point2 ippo = camera.project(wX_opt);
+            err.unrelaxed += (ipp.x()-ip.x())*(ipp.x()-ip.x()) + (ipp.y()-ip.y())*(ipp.y()-ip.y());
+            err.relaxed += (ippo.x()-ip.x())*(ippo.x()-ip.x()) + (ippo.y()-ip.y())*(ippo.y()-ip.y());
+          }
+          err.count = 4;
+          tagidToErr[tagkv.first].add(err);
+          camidToErr[camid].add(err);
+          totalError.add(err);
+        }
+      }
+    }
+    totalError.normalize();
+    ROS_INFO_STREAM("reprojection error unrelaxed: " << totalError.unrelaxed
+                    << " relaxed: " << totalError.relaxed);
+    of << "reprojection error unrelaxed: " << totalError.unrelaxed
+       << " relaxed: " << totalError.relaxed << endl;
+    
+    for (auto &p: tagidToErr) {  p.second.normalize(); }
+    for (auto &p: camidToErr) {  p.second.normalize(); }
+
+    auto tagsToErrPairs = sort_errors(tagidToErr);
+    auto camsToErrPairs = sort_errors(camidToErr);
+    of << "-------------------- error by tag ----------------" << endl;
+    for (const auto &p: tagsToErrPairs) {
+      of << "tag id: " << std::setw(3) << p.first << " unrelaxed err: " << std::setw(10) << p.second.unrelaxed << " relaxed: " << std::setw(10) << p.second.relaxed <<  endl;
+    }
+    of << "-------------------- error by camera ----------------" << endl;
+    for (const auto &p: camsToErrPairs) {
+      of << "cam id: " << std::setw(3) << p.first << " unrelaxed err: " << std::setw(10) << p.second.unrelaxed << " relaxed: " << std::setw(10) << p.second.relaxed <<  endl;
+    }
   }
 
   bool CalibTool::addTag(int id, double size,

@@ -1,0 +1,31 @@
+<launch>
+  <arg name="output" default="screen"/>
+  <arg name="bag_file" default="$(find bgp_calib)/test/test.bag"/>
+  <arg name="calibration_file"
+    default="$(find bgp_calib)/config/cameras_intrinsic_calib.yaml"/>
+  <arg name="poll_name" default="/poll_cameras"/>
+
+  <!-- calibration node -->
+  <!--    launch-prefix="xterm -e gdb minusminusargs" -->
+  <node pkg="bgp_calib" type="bgp_calib_node"
+    name="bgp_calib_node" output="$(arg output)">
+    <rosparam command="load" file="$(arg calibration_file)"/>
+    <rosparam param="tag_poses" command="load" file="$(find bgp_calib)/config/tag_poses.yaml"/>
+    <rosparam param="camera_names">["cam0","cam1", "cam2", "cam3"]</rosparam>
+    <!-- output files -->
+    <param name="calib_file_name" type="string" value="$(find bgp_calib)/test/extrinsic_calib.yaml"/>
+    <param name="output_cam_poses_file" type="string" value="$(find bgp_calib)/test/cam_poses.txt"/>
+    <param name="output_tag_poses_file" type="string" value="$(find bgp_calib)/test/tag_poses.txt"/>
+    <param name="reprojection_file" type="string" value="$(find bgp_calib)/test/reproj.txt"/>
+    <param name="diagnostics_file" type="string" value="$(find bgp_calib)/test/diagnostics.txt"/>
+    <!-- end output files -->
+    <param name="max_error" type="double" value="3000"/>
+    <remap from="~cam0/apriltags" to="$(arg poll_name)/cam0/apriltags"/>
+    <remap from="~cam1/apriltags" to="$(arg poll_name)/cam1/apriltags"/>
+    <remap from="~cam2/apriltags" to="$(arg poll_name)/cam2/apriltags"/>
+    <remap from="~cam3/apriltags" to="$(arg poll_name)/cam3/apriltags"/>
+  </node>
+  <!-- playback node -->
+  <node pkg="rosbag" type="play" name="player" output="screen" args="-r 0.1 $(arg bag_file)"/>
+
+</launch>

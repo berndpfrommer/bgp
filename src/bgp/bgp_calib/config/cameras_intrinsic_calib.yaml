@@ -1,0 +1,52 @@
+cam0:
+  T_cam_imu:
+    [1.0, 0.0, 0.0, 0.0,
+     0.0, 1.0, 0.0, 0.0,
+     0.0, 0.0, 1.0, 0.0,
+     0.0, 0.0, 0.0, 1.0]
+  camera_model: pinhole
+# k1, k2, t1, t2, k3
+# guessed:  distortion_coeffs: [-0.163620, 0.086008, 0.000376, -0.000640, 0.000000]
+  distortion_coeffs: [-0.163492, 0.088552, -0.000416, -0.000594, 0.000000]
+  distortion_model: plumb_bob
+# guessed  intrinsics: [748.7638,  747.3100,  508.5202, 515.4823]
+  intrinsics: [749.0586,  747.6448,  509.2948, 510.7279]
+  resolution: [1024, 1024]
+  rostopic: 17041936
+cam1:
+  T_cam_imu:
+    [1.0, 0.0, 0.0, 0.0,
+     0.0, 1.0, 0.0, 0.0,
+     0.0, 0.0, 1.0, 0.0,
+     0.0, 0.0, 0.0, 1.0]
+  camera_model: pinhole
+  distortion_coeffs: [-0.160887, 0.087520, -0.000100, -0.000319, 0.000000]
+  distortion_model: plumb_bob
+  intrinsics: [749.8574, 751.2651, 514.6226, 502.5214]
+  resolution: [1024, 1024]
+  rostopic: 17041931
+cam2:
+  T_cam_imu:
+    [1.0, 0.0, 0.0, 0.0,
+     0.0, 1.0, 0.0, 0.0,
+     0.0, 0.0, 1.0, 0.0,
+     0.0, 0.0, 0.0, 1.0]
+  camera_model: pinhole
+  distortion_coeffs: [-0.162011, 0.092032, -0.000002, -0.000388, 0.000000]
+  distortion_model: plumb_bob
+  intrinsics: [752.0638, 753.3976, 512.3292, 509.9695]
+  resolution: [1024, 1024]
+  rostopic: 17041932
+cam3:
+  T_cam_imu:
+    [1.0, 0.0, 0.0, 0.0,
+     0.0, 1.0, 0.0, 0.0,
+     0.0, 0.0, 1.0, 0.0,
+     0.0, 0.0, 0.0, 1.0]
+  camera_model: pinhole
+  distortion_coeffs: [-0.159304, 0.087633, 0.000369, -0.000861, 0.000000]
+  distortion_model: plumb_bob
+  intrinsics: [752.0853,  753.235,  513.7911,  510.5871]
+  resolution: [1024, 1024]
+  rostopic: 17041925
+
