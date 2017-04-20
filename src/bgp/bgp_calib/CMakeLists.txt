@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   apriltag_msgs
   gtsam_catkin
+  GTSAM
 )
 
 find_package(Eigen REQUIRED QUIET)
@@ -28,15 +29,16 @@ catkin_package(
 	CATKIN_DEPENDS geometry_msgs roscpp gtsam_catkin
 	)
 
-
+#
+# NOTE the missing S at the end of GTSAM_INCLUDE_DIR!!!
+#
 include_directories(
   include
   ${Eigen_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
-  /home/pfrommer/Documents/bgp/devel/include
+  ${GTSAM_INCLUDE_DIR}
   ${catkin_INCLUDE_DIRS}
 )
-#  ${gtsam_INCLUDE_DIRS}
 
 add_library(${PROJECT_NAME} src/CalibNode.cpp src/CalibTool.cpp
 src/Camera.cpp src/utils.cpp)
