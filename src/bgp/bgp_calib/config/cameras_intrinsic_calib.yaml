@@ -6,13 +6,11 @@ cam0:
      0.0, 0.0, 0.0, 1.0]
   camera_model: pinhole
 # k1, k2, t1, t2, k3
-# guessed:  distortion_coeffs: [-0.163620, 0.086008, 0.000376, -0.000640, 0.000000]
-  distortion_coeffs: [-0.163492, 0.088552, -0.000416, -0.000594, 0.000000]
+  distortion_coeffs: [-0.161357, 0.087973, -0.000643, -0.000262, 0.000000]
   distortion_model: plumb_bob
-# guessed  intrinsics: [748.7638,  747.3100,  508.5202, 515.4823]
-  intrinsics: [749.0586,  747.6448,  509.2948, 510.7279]
+  intrinsics: [748.586631,  750.4137825,  505.0316095, 511.779532]
   resolution: [1024, 1024]
-  rostopic: 17041936
+  rostopic: 17041930
 cam1:
   T_cam_imu:
     [1.0, 0.0, 0.0, 0.0,
