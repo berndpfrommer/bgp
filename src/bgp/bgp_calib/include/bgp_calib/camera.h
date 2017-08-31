@@ -12,6 +12,7 @@
 #include <iostream>
 #include <memory>
 #include <map>
+#include <set>
 
 namespace bgp_calib {
   class CalibNode;
@@ -27,6 +28,7 @@ namespace bgp_calib {
     void setR(const Eigen::Matrix<double, 3,3> &R);
     void setTransform(const std::vector<double> &transf);
     void setRes(const std::vector<int> &res);
+    void setMaskedTags(const std::vector<int> &ids);
     void setDistortionModel(const std::string &distmodel);
 
     const std::string &getName() const { return (name_); }
@@ -44,6 +46,7 @@ namespace bgp_calib {
 
     int getFrameNum(const ros::Time &t);
     bool gotFrames() const { return (frameNum_ >= 0); }
+    bool tagAllowed(int id) const { return (maskedIds_.count(id) == 0); }
     void initialize(ros::NodeHandle *nh,  const std::string &camName);
     void tag_cb(const apriltag_msgs::ApriltagArrayStamped::ConstPtr &msg);
     void print_intrinsics(std::ostream &of) const;
@@ -59,6 +62,7 @@ namespace bgp_calib {
     Eigen::Matrix<double, 3, 3> R_;       // rectification rotation matrix [3x3]
     Eigen::Matrix<double, 3, 3> P_;       // new projection (K) matrix after rect
     int                         res_[2];  // image resolution
+    std::set<int>               maskedIds_; // ids of tags to be ignored
     sensor_msgs::CameraInfo     camInfo_;
     ros::Time                   lastTime_;
     int                         frameNum_{-1};

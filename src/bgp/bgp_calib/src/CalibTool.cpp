@@ -422,11 +422,11 @@ namespace bgp_calib {
   
   bool CalibTool::tagObserved(int frame_num,
                               int camid, const apriltag_msgs::Apriltag &obstag) {
-    if (tags_.count(obstag.id) == 0) {
+    CamPtr &c = cam_[camid];
+    if (tags_.count(obstag.id) == 0 || !c->tagAllowed(obstag.id)) {
       return (false);
     }
     //cout << "using tag: " << obstag.id << endl;
-    CamPtr &c = cam_[camid];
 
     const Tag &tag = tags_[obstag.id];
 
