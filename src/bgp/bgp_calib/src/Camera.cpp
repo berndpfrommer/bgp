@@ -63,6 +63,10 @@ namespace bgp_calib {
     camInfo_.height = res[1];
   }
   
+  void Camera::setMaskedTags(const std::vector<int> &ids) {
+    maskedIds_ = std::set<int>(ids.begin(), ids.end());
+  }
+  
   Eigen::Matrix<double, 3, 3> Camera::extrinsicR() const {
     return (T_.block<3,3>(0, 0));
   }
@@ -117,6 +121,7 @@ namespace bgp_calib {
                           const std::string &camName) {
     std::string topic = camName + "_output_rect";
     std::string info_topic = camName + "_output_caminfo";
+    setMaskedTags(get_param(nh, camName + "/masked_ids",  vector<int>()));
     setK(get_param(nh, camName + "/intrinsics",  vector<double>()));
     setD(get_param(nh, camName + "/distortion_coeffs", vector<double>()));
     setDistortionModel(get_param(nh, camName + "/distortion_model",
