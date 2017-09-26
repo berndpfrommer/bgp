@@ -499,7 +499,7 @@ namespace bgp_calib {
         gtsam::Pose3 wTc = values_.at<gtsam::Pose3>(csym);
         of << cam.getName() << ":" << std::endl;
         of << "  T_cam_imu:" << std::endl;
-        print_pose(of, wTc);
+        print_pose(of, wTc.inverse());
         cam.print_intrinsics(of);
         of << "  rostopic: " << cam.getName() << std::endl;
       }
