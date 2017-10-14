@@ -41,7 +41,7 @@ include_directories(
 )
 
 add_library(${PROJECT_NAME} src/CalibNode.cpp src/CalibTool.cpp
-src/Camera.cpp src/utils.cpp)
+src/Camera.cpp src/utils.cpp src/Tag.cpp)
 
 target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
 

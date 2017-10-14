@@ -104,7 +104,7 @@ namespace bgp_calib {
   void Camera::print_intrinsics(std::ostream &of) const {
     of << "  camera_model: pinhole" << std::endl;
     of << "  distortion_coeffs: [" << vec_to_str(D_) << "]" << std::endl;
-    of << "  distortion_model: equidistant" << std::endl;
+    of << "  distortion_model: " << distModel_ << std::endl;
     of << "  intrinsics: [" << K_(0,0) << ", " << K_(1,1) << ", " << K_(0,2)
        << ", " << K_(1,2) << "]" << std::endl;
     of << "  resolution: [" << res_[0] << ", " << res_[1] << "]" << std::endl;
@@ -125,7 +125,7 @@ namespace bgp_calib {
     setK(get_param(nh, camName + "/intrinsics",  vector<double>()));
     setD(get_param(nh, camName + "/distortion_coeffs", vector<double>()));
     setDistortionModel(get_param(nh, camName + "/distortion_model",
-                                 string("equidistant")));
+                                 string("radtan")));
     setTransform(get_param(nh, camName + "/T_cam_imu", vector<double>()));
     setRes(get_param(nh, camName + "/resolution", vector<int>()));
     sub_ = nh->subscribe(camName + "/apriltags", 1, &Camera::tag_cb, this);

@@ -6,6 +6,7 @@
 #define BGPCALIB_CALIBTOOL_H
 
 #include <bgp_calib/camera.h>
+#include <bgp_calib/tag.h>
 
 #include <gtsam/nonlinear/Values.h>
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
@@ -31,20 +32,6 @@ namespace bgp_calib {
   class CalibTool {
   public:
     typedef gtsam::noiseModel::Diagonal::shared_ptr   PoseNoise;
-    struct Tag {
-      Tag(int ida = 0, int num = 0, double sz = 0,
-          const gtsam::Pose3 &p = gtsam::Pose3(),
-          PoseNoise pn = gtsam::noiseModel::Diagonal::Sigmas(gtsam::Vector(6))):
-        id(ida), sizenumber(num), size(sz), pose(p), noise(pn) { };
-      gtsam::Point3 getObjectCorner(int i) const;
-      gtsam::Point3 getWorldCorner(int i) const;
-      int           id;
-      int           sizenumber; // counts tag sizes
-      double        size;
-      gtsam::Pose3  pose; // transforms object to world
-      PoseNoise     noise;
-    };
-
     CalibTool() {};
     ~CalibTool() {};
     CalibTool(const CalibTool&) = delete;
@@ -52,10 +39,7 @@ namespace bgp_calib {
 
     void setMaxError(double e) { maxError_ = e; }
     void addCamera(CamPtr cam) { cam_.push_back(cam); }
-    bool addTag(int id, double size, const Eigen::Vector3d &anglevec,
-                const Eigen::Vector3d &center,
-                const Eigen::Vector3d &angnoise,
-                const Eigen::Vector3d &posnoise);
+    bool addTag(const Tag &t);
     int  frameObserved(const apriltag_msgs::ApriltagArrayStamped::ConstPtr &msg,
                       int camid);
     gtsam::Values  optimize();

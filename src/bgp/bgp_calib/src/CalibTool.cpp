@@ -17,6 +17,7 @@
 #include <string>
 #include <cmath>
 #include <iostream>
+#include <iomanip>
 #include <fstream>
 #include <sstream>
 
@@ -60,6 +61,15 @@ namespace bgp_calib {
     of << "     " << M(2,0) << ", " << M(2,1) << ", " << M(2,2) << ", " << M(2,3) <<","<< endl;
     of << "     " << M(3,0) << ", " << M(3,1) << ", " << M(3,2) << ", " << M(3,3) <<"]"<< endl;
   }
+  
+  static void print_pose_yaml(std::ostream &of, const gtsam::Pose3 &p) {
+    gtsam::Matrix4 M = p.matrix();
+    of << std::setprecision(8) << std::fixed;
+    of << "  - [" << M(0,0) << ", " << M(0,1) << ", " << M(0,2) << ", " << M(0,3) <<"]"<< endl;
+    of << "  - [" << M(1,0) << ", " << M(1,1) << ", " << M(1,2) << ", " << M(1,3) <<"]"<< endl;
+    of << "  - [" << M(2,0) << ", " << M(2,1) << ", " << M(2,2) << ", " << M(2,3) <<"]"<< endl;
+    of << "  - [" << M(3,0) << ", " << M(3,1) << ", " << M(3,2) << ", " << M(3,3) <<"]"<< endl;
+  }
 
   static std::string to_string(std::string name, const gtsam::Pose3 &p) {
     std::stringstream ss;
@@ -78,26 +88,6 @@ namespace bgp_calib {
     return (ss.str());
   }
   
-  static CalibTool::PoseNoise makePoseNoise(const Eigen::Vector3d &a,
-                                            const Eigen::Vector3d &p) {
-    gtsam::Vector sn(6);
-    sn << a(0),a(1),a(2),p(0),p(1),p(2);
-    return (gtsam::noiseModel::Diagonal::Sigmas(sn));
-  }
-
-  static gtsam::Matrix3 rotmat(const Eigen::Vector3d &rvec) {
-    Eigen::Matrix<double, 3, 1> axis{0, 0, 0};
-    double angle(0);
-    const double n = rvec.norm();
-    
-    if (n > 1e-8) {
-      axis = rvec / n;
-      angle = n;
-    }
-    Eigen::Matrix<double, 3, 3> m(Eigen::AngleAxis<double>(angle, axis));
-    return (gtsam::Matrix3(m));
-  }
-
   static boost::shared_ptr<gtsam::Cal3DS2> makeCameraModel(CamPtr c) {
     const Eigen::Matrix<double, 3, 3> &K = c->K();
     const Eigen::Matrix<double, 1, 5> &D = c->D();
@@ -111,7 +101,7 @@ namespace bgp_calib {
 
 //#define DEBUG_PRINT
 
-  static gtsam::Pose3 guessPose(CamPtr c, const CalibTool::Tag &tag,
+  static gtsam::Pose3 guessPose(CamPtr c, const Tag &tag,
                                 const std::vector<gtsam::Point2> ip) {
     std::vector<gtsam::Point3> wp;  // image points
     for (int i = 0; i < 4; i++) {   // loop over corners
@@ -147,19 +137,6 @@ namespace bgp_calib {
       *result = lmo.optimize();
       double err = lmo.error();
       return (err);
-  }
-
-  gtsam::Point3 CalibTool::Tag::getObjectCorner(int i) const {
-    double s = size;
-    const gtsam::Point3 c[4] = {gtsam::Point3(-s/2,-s/2, 0),
-                                gtsam::Point3( s/2,-s/2, 0),
-                                gtsam::Point3( s/2, s/2, 0),
-                                gtsam::Point3(-s/2, s/2, 0)};
-    return (c[i]);
-  }
-
-  gtsam::Point3 CalibTool::Tag::getWorldCorner(int i) const {
-    return (pose.transform_from(getObjectCorner(i)));
   }
 
   static void printCameraPoses(const gtsam::Values &values) {
@@ -482,7 +459,7 @@ namespace bgp_calib {
         int camid = camkv.first;
         ROS_INFO_STREAM(" camera: " << cam_[camid]->getName());
         gtsam::Symbol csym = getCamToWorldSym(camid, frame_num);
-        gtsam::Pose3 wTc = values_.at<gtsam::Pose3>(csym);
+        gtsam::Pose3 wTc = optimizedValues_.at<gtsam::Pose3>(csym);
         ROS_INFO_STREAM(to_string("wTc" + std::to_string(camid), wTc));
       }
     }
@@ -495,11 +472,11 @@ namespace bgp_calib {
       const auto &cam = *cam_[camid];
       int frame_num = 0;
       gtsam::Symbol csym = getCamToWorldSym(camid, frame_num);
-      if (values_.exists(csym)) {
-        gtsam::Pose3 wTc = values_.at<gtsam::Pose3>(csym);
+      if (optimizedValues_.exists(csym)) {
+        gtsam::Pose3 wTc = optimizedValues_.at<gtsam::Pose3>(csym);
         of << cam.getName() << ":" << std::endl;
         of << "  T_cam_imu:" << std::endl;
-        print_pose(of, wTc.inverse());
+        print_pose_yaml(of, wTc.inverse());
         cam.print_intrinsics(of);
         of << "  rostopic: " << cam.getName() << std::endl;
       }
@@ -513,8 +490,8 @@ namespace bgp_calib {
       const auto &cam = *cam_[camid];
       int frame_num = 0;
       gtsam::Symbol csym = getCamToWorldSym(camid, frame_num);
-      if (values_.exists(csym)) {
-        gtsam::Pose3 wTc = values_.at<gtsam::Pose3>(csym);
+      if (optimizedValues_.exists(csym)) {
+        gtsam::Pose3 wTc = optimizedValues_.at<gtsam::Pose3>(csym);
         const gtsam::Point3 rvec = gtsam::Rot3::Logmap(wTc.rotation());
         gtsam::Point3 t = wTc.translation();
         of << camid << " " << rvec.x() << " " << rvec.y() << " " << rvec.z()
@@ -570,6 +547,16 @@ namespace bgp_calib {
             continue;
           }
           const Tag &tag = ti->second;
+          if (ti->first != 3) {
+            continue;
+          }
+          std::cout << "reproj: camid: " << camid << std::endl;
+          c->print_intrinsics(std::cout);
+          std::cout << "cam pose: " << wTc.inverse() << std::endl;
+          std::cout << "sym: " << camid << " + " << frame_num << std::endl;
+          std::cout << "same in green: " << std::endl;
+          print_pose(std::cout, wTc.inverse());
+
           for (int i = 0; i < 4; i++) {   // loop over corners
             gtsam::Symbol wsym = getWSym(tag.id, i);
             gtsam::Point3 wX_opt = optimizedValues_.at<gtsam::Point3>(wsym);
@@ -680,24 +667,18 @@ namespace bgp_calib {
     }
   }
 
-  bool CalibTool::addTag(int id, double size,
-                         const Eigen::Vector3d &anglevec,
-                         const Eigen::Vector3d &center,
-                         const Eigen::Vector3d &angnoise,
-                         const Eigen::Vector3d &posnoise) {
-    if (tags_.find(id) != tags_.end()) {
-      throw std::runtime_error("duplicate tag id: " + std::to_string(id));
+  bool CalibTool::addTag(const Tag &t) {
+    if (tags_.find(t.id) != tags_.end()) {
+      throw std::runtime_error("duplicate tag id: " + std::to_string(t.id));
     }
-    gtsam::Rot3   R(rotmat(anglevec));
-    gtsam::Point3 T(center);
-    gtsam::Pose3  trans(R, T);
-    if (tagSizeToNumber_.count(size) != 0) {
-      tagSizeToNumber_[size] = tagSizeToNumber_.size();
+    if (tagSizeToNumber_.count(t.size) != 0) {
+      tagSizeToNumber_[t.size] = tagSizeToNumber_.size();
     }
+    Tag tag(t);
+    // replace size number with right value
+    tag.sizenumber = tagSizeToNumber_[t.size];
 
-    Tag t(id, tagSizeToNumber_[size], size,
-          trans, makePoseNoise(angnoise, posnoise));
-    tags_[id] = t;
+    tags_[t.id] = tag;
 
     return (true);
   }
