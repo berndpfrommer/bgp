@@ -51,6 +51,7 @@ namespace bgp_calib {
     bool gotFrames(int camid) const { return (cam_[camid]->gotFrames()); }
     void writeCalibrationFile(const std::string &filename) const;
     void writeCameraPoses(const std::string &filename) const;
+    void writeCameraTransforms(const std::string &filename) const;
     void writeTagPoses(const std::string &filename) const;
     void writeReprojectionData(const std::string &filename) const;
     void testReprojection(const std::string &filename) const;

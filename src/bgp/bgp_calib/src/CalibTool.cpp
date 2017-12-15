@@ -499,6 +499,29 @@ namespace bgp_calib {
       }
     }
   }
+  
+  void CalibTool::writeCameraTransforms(const std::string &filename) const {
+    ROS_INFO_STREAM("writing camera transforms to file " << filename);
+    std::ofstream of = open_file(filename);
+    of << "<launch>" << std::endl;
+    of << "<arg name=\"parent_frame\"/>" << std::endl;
+    of << "<arg name=\"child_base\"/>" << std::endl;
+    for (int camid = 0; camid < cam_.size(); camid++) {
+      const auto &cam = *cam_[camid];
+      int frame_num = 0;
+      gtsam::Symbol csym = getCamToWorldSym(camid, frame_num);
+      if (optimizedValues_.exists(csym)) {
+        gtsam::Pose3 wTc = optimizedValues_.at<gtsam::Pose3>(csym);
+        const gtsam::Quaternion q = wTc.rotation().toQuaternion();
+        gtsam::Point3 t = wTc.translation();
+        of << " <node pkg=\"tf2_ros\" type=\"static_transform_publisher\" name=\"map_to_cam" << camid << "\"";
+        of << " args=\"" << t.x() << " " << t.y() << " " << t.z() << " " << q.x() << " " << q.y() << " " << q.z() << " " << q.w();
+        of << " $(arg parent_frame) $(arg child_base)/cam" << camid << "\"/>" << std::endl;
+      }
+    }
+    of << "</launch>" << std::endl;
+  }
+ 
   void CalibTool::writeTagPoses(const std::string &filename) const {
     ROS_INFO_STREAM("writing tag poses to file " << filename);
     std::ofstream of = open_file(filename);
