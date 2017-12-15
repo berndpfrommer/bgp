@@ -18,6 +18,7 @@ namespace bgp_calib {
   class CalibNode;
   class Camera {
   public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     Camera(const std::string &name = "", int id = 0, CalibNode *n = 0) :
       name_(name), id_(id), calibNode_(n) {}
     ~Camera();

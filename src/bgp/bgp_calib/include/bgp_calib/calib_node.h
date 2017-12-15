@@ -13,6 +13,7 @@
 namespace bgp_calib {
   class CalibNode {
   public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     CalibNode(const ros::NodeHandle &pnh);
     ~CalibNode();
 

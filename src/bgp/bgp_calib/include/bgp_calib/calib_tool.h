@@ -31,6 +31,7 @@
 namespace bgp_calib {
   class CalibTool {
   public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     typedef gtsam::noiseModel::Diagonal::shared_ptr   PoseNoise;
     CalibTool() {};
     ~CalibTool() {};

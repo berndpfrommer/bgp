@@ -528,14 +528,13 @@ namespace bgp_calib {
   }
 
   void CalibTool::writeReprojectionData(const std::string &filename) const {
-    ROS_INFO_STREAM("writing reprojection data to file " << filename);
+    ROS_INFO_STREAM("writing reprojection data for " << obsTags_.size() << " to file " << filename);
     std::ofstream of = open_file(filename);
     for (auto const &framekv: obsTags_) { // loop over all frames
       int frame_num = framekv.first;
       for (auto const &camkv: framekv.second) { // loop over all cameras
         int camid = camkv.first;
         const CamPtr &c = cam_[camid];
-
         boost::shared_ptr<gtsam::Cal3DS2> camModel = makeCameraModel(c);
 
         gtsam::Symbol csym = getCamToWorldSym(camid, frame_num);
@@ -547,16 +546,6 @@ namespace bgp_calib {
             continue;
           }
           const Tag &tag = ti->second;
-          if (ti->first != 3) {
-            continue;
-          }
-          std::cout << "reproj: camid: " << camid << std::endl;
-          c->print_intrinsics(std::cout);
-          std::cout << "cam pose: " << wTc.inverse() << std::endl;
-          std::cout << "sym: " << camid << " + " << frame_num << std::endl;
-          std::cout << "same in green: " << std::endl;
-          print_pose(std::cout, wTc.inverse());
-
           for (int i = 0; i < 4; i++) {   // loop over corners
             gtsam::Symbol wsym = getWSym(tag.id, i);
             gtsam::Point3 wX_opt = optimizedValues_.at<gtsam::Point3>(wsym);
