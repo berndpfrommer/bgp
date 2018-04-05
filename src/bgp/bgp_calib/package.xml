@@ -16,8 +16,6 @@
   <depend>apriltag_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>standard_msgs</depend>
-  <depend>gtsam_catkin</depend>
-  <depend>GTSAM</depend>
   <depend>eigen</depend>
   
   <export>

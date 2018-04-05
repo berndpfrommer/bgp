@@ -10,12 +10,11 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   geometry_msgs
   apriltag_msgs
-  gtsam_catkin
-  GTSAM
 )
 
-find_package(Eigen REQUIRED QUIET)
+find_package(Eigen3 REQUIRED QUIET)
 find_package(OpenCV 3 REQUIRED QUIET)
+find_package(GTSAM REQUIRED QUIET)
 
 #include_directories(${OpenCV_INCLUDE_DIRS} ${CERES_INCLUDE_DIRS})
 
@@ -26,24 +25,21 @@ find_package(OpenCV 3 REQUIRED QUIET)
 # what to export
 catkin_package(
 	INCLUDE_DIRS include
-	CATKIN_DEPENDS geometry_msgs roscpp gtsam_catkin
+	CATKIN_DEPENDS geometry_msgs roscpp
 	)
 
-#
-# NOTE the missing S at the end of GTSAM_INCLUDE_DIR!!!
-#
 include_directories(
   include
   ${Eigen_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
-  ${GTSAM_INCLUDE_DIR}
+  ${GTSAM_INCLUDE_DIRS}
   ${catkin_INCLUDE_DIRS}
 )
 
 add_library(${PROJECT_NAME} src/CalibNode.cpp src/CalibTool.cpp
 src/Camera.cpp src/utils.cpp src/Tag.cpp)
 
-target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} ${GTSAM_LIBRARIES})
 
 add_dependencies(${PROJECT_NAME}
   ${${PROJECT_NAME}_EXPORTED_TARGETS}
