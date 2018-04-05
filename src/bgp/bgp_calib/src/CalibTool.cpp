@@ -499,6 +499,29 @@ namespace bgp_calib {
       }
     }
   }
+  
+  void CalibTool::writeCameraTransforms(const std::string &filename) const {
+    ROS_INFO_STREAM("writing camera transforms to file " << filename);
+    std::ofstream of = open_file(filename);
+    of << "<launch>" << std::endl;
+    of << "<arg name=\"parent_frame\"/>" << std::endl;
+    of << "<arg name=\"child_base\"/>" << std::endl;
+    for (int camid = 0; camid < cam_.size(); camid++) {
+      const auto &cam = *cam_[camid];
+      int frame_num = 0;
+      gtsam::Symbol csym = getCamToWorldSym(camid, frame_num);
+      if (optimizedValues_.exists(csym)) {
+        gtsam::Pose3 wTc = optimizedValues_.at<gtsam::Pose3>(csym);
+        const gtsam::Quaternion q = wTc.rotation().toQuaternion();
+        gtsam::Point3 t = wTc.translation();
+        of << " <node pkg=\"tf2_ros\" type=\"static_transform_publisher\" name=\"map_to_cam" << camid << "\"";
+        of << " args=\"" << t.x() << " " << t.y() << " " << t.z() << " " << q.x() << " " << q.y() << " " << q.z() << " " << q.w();
+        of << " $(arg parent_frame) $(arg child_base)/cam" << camid << "\"/>" << std::endl;
+      }
+    }
+    of << "</launch>" << std::endl;
+  }
+ 
   void CalibTool::writeTagPoses(const std::string &filename) const {
     ROS_INFO_STREAM("writing tag poses to file " << filename);
     std::ofstream of = open_file(filename);
@@ -528,14 +551,13 @@ namespace bgp_calib {
   }
 
   void CalibTool::writeReprojectionData(const std::string &filename) const {
-    ROS_INFO_STREAM("writing reprojection data to file " << filename);
+    ROS_INFO_STREAM("writing reprojection data for " << obsTags_.size() << " to file " << filename);
     std::ofstream of = open_file(filename);
     for (auto const &framekv: obsTags_) { // loop over all frames
       int frame_num = framekv.first;
       for (auto const &camkv: framekv.second) { // loop over all cameras
         int camid = camkv.first;
         const CamPtr &c = cam_[camid];
-
         boost::shared_ptr<gtsam::Cal3DS2> camModel = makeCameraModel(c);
 
         gtsam::Symbol csym = getCamToWorldSym(camid, frame_num);
@@ -547,16 +569,6 @@ namespace bgp_calib {
             continue;
           }
           const Tag &tag = ti->second;
-          if (ti->first != 3) {
-            continue;
-          }
-          std::cout << "reproj: camid: " << camid << std::endl;
-          c->print_intrinsics(std::cout);
-          std::cout << "cam pose: " << wTc.inverse() << std::endl;
-          std::cout << "sym: " << camid << " + " << frame_num << std::endl;
-          std::cout << "same in green: " << std::endl;
-          print_pose(std::cout, wTc.inverse());
-
           for (int i = 0; i < 4; i++) {   // loop over corners
             gtsam::Symbol wsym = getWSym(tag.id, i);
             gtsam::Point3 wX_opt = optimizedValues_.at<gtsam::Point3>(wsym);

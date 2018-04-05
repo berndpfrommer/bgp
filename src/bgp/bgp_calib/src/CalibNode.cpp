@@ -27,13 +27,15 @@ namespace bgp_calib {
       calibTool_.printResults();
       std::string calibFileName("calib.yaml"), tagPoses("tag_poses.txt"),
         camPoses("cam_poses.txt"), reprojData("reproj.txt"),
-        reprojDiag("reproj_diag.txt");
+        reprojDiag("reproj_diag.txt"), tfFileName("static_tf.launch");
       nh_.getParam("calib_file_name", calibFileName);
       nh_.getParam("output_tag_poses_file", tagPoses);
       nh_.getParam("output_cam_poses_file", camPoses);
       nh_.getParam("diagnostics_file", reprojDiag);
       nh_.getParam("reprojection_file", reprojData);
+      nh_.param<std::string>("output_transform_file", tfFileName, "static_tf.launch");
       calibTool_.writeCalibrationFile(calibFileName);
+      calibTool_.writeCameraTransforms(tfFileName);
       calibTool_.writeTagPoses(tagPoses);
       calibTool_.writeCameraPoses(camPoses);
       calibTool_.writeReprojectionData(reprojData);

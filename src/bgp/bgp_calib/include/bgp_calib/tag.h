@@ -12,6 +12,7 @@
 
 namespace bgp_calib {
   struct Tag {
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     typedef gtsam::noiseModel::Diagonal::shared_ptr   PoseNoise;
     Tag(int ida = 0, int num = 0, double sz = 0,
         const gtsam::Pose3 &p = gtsam::Pose3(),
