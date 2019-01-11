@@ -16,7 +16,7 @@ find_package(Eigen3 REQUIRED QUIET)
 find_package(OpenCV 3 REQUIRED QUIET)
 find_package(GTSAM REQUIRED QUIET)
 
-#include_directories(${OpenCV_INCLUDE_DIRS} ${CERES_INCLUDE_DIRS})
+include_directories(${EIGEN3_INCLUDE_DIR} ${OpenCV_INCLUDE_DIRS} ${GTSAM_INCLUDE_DIRS})
 
 #target_link_libraries(calib_intrinsics ${CERES_LIBRARIES}
 #${OpenCV_LIBRARIES})
@@ -36,8 +36,7 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-add_library(${PROJECT_NAME} src/CalibNode.cpp src/CalibTool.cpp
-src/Camera.cpp src/utils.cpp src/Tag.cpp)
+add_library(${PROJECT_NAME} src/CalibNode.cpp src/CalibTool.cpp src/Camera.cpp src/utils.cpp src/Tag.cpp)
 
 target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} ${GTSAM_LIBRARIES})
 
@@ -48,7 +47,8 @@ add_dependencies(${PROJECT_NAME}
 
 add_executable(${PROJECT_NAME}_node src/${PROJECT_NAME}_node.cpp)
 target_link_libraries(${PROJECT_NAME}_node
-  ${PROJECT_NAME} 
- ${catkin_LIBRARIES}
+  ${PROJECT_NAME}
+  ${GTSAM_LIBRARIES}
+  ${catkin_LIBRARIES}
 )
 
